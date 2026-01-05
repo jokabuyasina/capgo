@@ -350,7 +350,7 @@ export async function markDeliveryFailed(
 export async function getWebhookById(
   c: Context,
   webhookId: string,
-) {
+): Promise<Webhook | null> {
   const { data, error } = await supabaseAdmin(c)
     .from('webhooks')
     .select('*, orgs!inner(management_email)')
