@@ -106,8 +106,7 @@ app.post('/', async (c) => {
 
   const userId = signInData.user.id
 
-  // Use authenticated client for subsequent queries - RLS will enforce access
-  const supabase = supabaseClient(c, `Bearer ${signInData.session.access_token}`)
+  supabaseAdmin = useSupabaseAdmin(c)
 
   // Verify user is a member of this organization
   const { data: membership, error: memberError } = await supabaseAdmin
