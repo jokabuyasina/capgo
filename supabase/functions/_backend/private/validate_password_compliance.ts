@@ -105,8 +105,15 @@ app.post('/', async (c) => {
 
   const userId = signInData.user.id
 
-  // Use authenticated client for subsequent queries - RLS will enforce access
-  const supabase = supabaseClient(c, `Bearer ${signInData.session.access_token}`)
+  supabaseAdmin = useSupabaseAdmin(c)
+
+  // Verify user is a member of this organization
+  const { data: membership, error: memberError } = await supabaseAdmin
+    .from('org_users')
+    .select('user_id')
+    .eq('org_id', body.org_id)
+    .eq('user_id', userId)
+    .single()
 
   // Verify user has access to this organization (RBAC + legacy compatible)
   const { data: hasOrgAccess, error: accessError } = await supabase
