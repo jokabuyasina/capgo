@@ -6,8 +6,7 @@
  * database, but the client sends the plain key value which gets hashed server-side
  * for comparison.
  *
- * IMPORTANT: Uses isolated RLS test data (ORG_ID_RLS, USER_ID_RLS) to prevent
- * interference with other tests that may modify shared org/stripe data.
+ * Uses the pre-seeded hashed API key: 'test-hashed-apikey-for-auth-test' (id=100)
  */
 import type { UploadOptions } from '@capgo/cli/sdk'
 import { randomUUID } from 'node:crypto'
@@ -16,18 +15,18 @@ import { env } from 'node:process'
 import { CapgoSDK } from '@capgo/cli/sdk'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cleanupCli, getSemver, prepareCli, tempFileFolder } from './cli-utils'
-import { CLI_HASHED_APIKEY, CLI_HASHED_ORG_ID, CLI_HASHED_STRIPE_CUSTOMER_ID, CLI_HASHED_USER_ID, resetAndSeedAppData, resetAppData, resetAppDataStats } from './test-utils'
+import { APIKEY_TEST_HASHED, resetAndSeedAppData, resetAppData, resetAppDataStats } from './test-utils'
 
 // Supabase base URL (not including /functions/v1)
 const SUPABASE_URL = env.SUPABASE_URL || 'http://localhost:54321'
 const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY || 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'
 
 /**
- * Create an SDK instance with the CLI hashed API key (isolated test data)
+ * Create an SDK instance with the hashed API key (same pattern as createTestSDK)
  */
 function createHashedKeySDK() {
   return new CapgoSDK({
-    apikey: CLI_HASHED_APIKEY,
+    apikey: APIKEY_TEST_HASHED,
     supaHost: SUPABASE_URL,
     supaAnon: SUPABASE_ANON_KEY,
   })
@@ -79,7 +78,7 @@ describe('CLI operations with hashed API key', () => {
 
   beforeAll(async () => {
     await Promise.all([
-      resetAndSeedAppData(APPNAME, { orgId: CLI_HASHED_ORG_ID, userId: CLI_HASHED_USER_ID, stripeCustomerId: CLI_HASHED_STRIPE_CUSTOMER_ID }),
+      resetAndSeedAppData(APPNAME),
       prepareCli(APPNAME),
     ])
   })
