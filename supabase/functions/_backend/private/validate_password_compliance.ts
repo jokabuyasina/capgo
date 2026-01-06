@@ -63,6 +63,8 @@ app.post('/', async (c) => {
   }
 
   const body = validationResult.data
+  const { password: _password, ...bodyWithoutPassword } = body
+  cloudlog({ requestId: c.get('requestId'), context: 'validate_password_compliance raw body', rawBody: bodyWithoutPassword })
   const supabaseAdmin = useSupabaseAdmin(c)
 
   // Get the org's password policy - need admin for initial lookup
