@@ -6,7 +6,7 @@ import { getRuntimeKey } from 'hono/adapter'
 import { Hono } from 'hono/tiny'
 import { simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { supabaseAdmin } from '../utils/supabase.ts'
+import { supabaseClient } from '../utils/supabase.ts'
 import { DEFAULT_RETRY_PARAMS, RetryBucket } from './retry.ts'
 // Cache settings
 const PREVIEW_AUTH_CACHE_PATH = '/.preview-auth'
@@ -169,7 +169,13 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   // Security relies on the obscure subdomain format and the allow_preview setting
   const supabase = supabaseAdmin(c)
 
-  // Get app settings to check if preview is enabled (case-insensitive since frontend lowercases)
+  if (!token)
+    return simpleError('cannot_find_authorization', 'Cannot find authorization. Pass token as query param on first request.')
+
+  // Use authenticated client - RLS will enforce access based on JWT
+  const supabase = supabaseClient(c, `Bearer ${token}`)
+
+  // Get app settings to check if preview is enabled
   const { data: appData, error: appError } = await supabase
     .from('apps')
     .select('app_id, allow_preview')

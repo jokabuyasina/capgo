@@ -4,7 +4,7 @@ import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.t
 import { cloudlog } from '../utils/logging.ts'
 import { checkPermission } from '../utils/rbac.ts'
 import { createCheckout } from '../utils/stripe.ts'
-import { hasOrgRight, supabaseClient } from '../utils/supabase.ts'
+import { hasOrgRight, supabaseAdmin, supabaseClient } from '../utils/supabase.ts'
 import { getEnv } from '../utils/utils.ts'
 
 interface CheckoutData {
@@ -41,6 +41,9 @@ app.post('/', middlewareAuth, async (c) => {
     return simpleError('not_authorize', 'Not authorize')
 
   cloudlog({ requestId: c.get('requestId'), message: 'auth', auth: auth.user.id })
+
+  // Use authenticated client for data queries - RLS will enforce access
+  const supabase = supabaseClient(c, authorization!)
   const { data: org, error: dbError } = await supabase
     .from('orgs')
     .select('customer_id')
