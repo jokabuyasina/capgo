@@ -3,8 +3,7 @@ import { Hono } from 'hono/tiny'
 import { getBundleUrl, getManifestUrl } from '../utils/downloadUrl.ts'
 import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { checkPermission } from '../utils/rbac.ts'
-import { supabaseClient } from '../utils/supabase.ts'
+import { hasAppRight, supabaseAdmin, supabaseClient } from '../utils/supabase.ts'
 
 interface DataDownload {
   app_id: string
@@ -38,6 +37,9 @@ app.post('/', middlewareAuth, async (c) => {
   // Auth context is already set by middlewareAuth
   if (!(await checkPermission(c, 'app.read_bundles', { appId: body.app_id })))
     throw simpleError('app_access_denied', 'You can\'t access this app', { app_id: body.app_id })
+
+  // Use authenticated client for data queries - RLS will enforce access
+  const supabase = supabaseClient(c, authorization)
 
   const { data: bundle, error: getBundleError } = await supabase
     .from('app_versions')

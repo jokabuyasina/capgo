@@ -7,8 +7,7 @@ import { z } from 'zod/mini'
 import { trackBentoEvent } from '../utils/bento.ts'
 import { BRES, middlewareAuth, parseBody, quickError, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { checkPermission } from '../utils/rbac.ts'
-import { supabaseAdmin, supabaseClient } from '../utils/supabase.ts'
+import { supabaseClient } from '../utils/supabase.ts'
 import { getEnv } from '../utils/utils.ts'
 
 // Validate name to prevent HTML/script injection
@@ -99,18 +98,7 @@ async function validateInvite(c: Context, rawBody: any) {
 
   const authorization = c.get('authorization')
   if (!authorization)
-    return quickError(401, 'not_authorized', 'Not authorized')
-
-  // Verify the user has permission to invite
-  // inviting super_admin requires org.update_user_roles, other roles require org.invite_user
-  const isSuperAdminInvite = body.invite_type === 'super_admin' || body.invite_type === 'org_super_admin'
-  const requiredPermission = isSuperAdminInvite ? 'org.update_user_roles' : 'org.invite_user'
-  if (!await checkPermission(c, requiredPermission, { orgId: body.org_id })) {
-    return quickError(403, 'not_authorized', 'Not authorized', {
-      requiredPermission,
-      orgId: body.org_id,
-    })
-  }
+    return { message: 'not authorized', status: 401 }
 
   // Verify captcha token with Cloudflare Turnstile
   await verifyCaptchaToken(c, body.captcha_token)
@@ -141,9 +129,6 @@ async function validateInvite(c: Context, rawBody: any) {
     return { message: 'Failed to invite user', error: orgError?.message ?? 'Organization not found', status: 500 }
   }
 
-  const useNewRbac = org.use_new_rbac === true
-  const { legacyInviteType, rbacRoleName } = resolveInviteRoles(body.invite_type, useNewRbac)
-
   // Get current user ID from JWT
   const { data: authData, error: authError } = await supabase.auth.getUser()
   if (authError || !authData?.user?.id) {
@@ -160,7 +145,7 @@ async function validateInvite(c: Context, rawBody: any) {
   if (inviteCreatorUserError) {
     return { message: 'Failed to invite user', error: inviteCreatorUserError.message, status: 500 }
   }
-  return { inviteCreatorUser, org, body, authorization, legacyInviteType, rbacRoleName }
+  return { inviteCreatorUser, org, body, authorization }
 }
 
 app.post('/', middlewareAuth, async (c) => {
@@ -180,10 +165,10 @@ app.post('/', middlewareAuth, async (c) => {
   const inviteCreatorUser = res.inviteCreatorUser
   const org = res.org
 
-  // Use admin client for tmp_users operations since RLS blocks all access on that table
-  const supabaseAdminClient = supabaseAdmin(c)
+  // Use authenticated client for data queries - RLS will enforce access
+  const supabase = supabaseClient(c, res.authorization!)
 
-  const { data: existingInvitation } = await supabaseAdminClient
+  const { data: existingInvitation } = await supabase
     .from('tmp_users')
     .select('*')
     .eq('email', body.email)
@@ -197,7 +182,7 @@ app.post('/', middlewareAuth, async (c) => {
       throw simpleError('user_already_invited', 'User already invited and it hasnt been 3 hours since the last invitation was cancelled')
     }
 
-    const { error: updateInvitationError, data: updatedInvitationData } = await supabaseAdminClient
+    const { error: updateInvitationError, data: updatedInvitationData } = await supabase
       .from('tmp_users')
       .update({
         cancelled_at: null,
@@ -218,7 +203,7 @@ app.post('/', middlewareAuth, async (c) => {
     newInvitation = updatedInvitationData
   }
   else {
-    const { error: createUserError, data: newInvitationData } = await supabaseAdminClient.from('tmp_users').insert({
+    const { error: createUserError, data: newInvitationData } = await supabase.from('tmp_users').insert({
       email: body.email,
       org_id: body.org_id,
       role: legacyInviteType,

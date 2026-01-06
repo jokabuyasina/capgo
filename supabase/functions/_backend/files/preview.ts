@@ -6,8 +6,7 @@ import { getRuntimeKey } from 'hono/adapter'
 import { CacheHelper } from '../utils/cache.ts'
 import { simpleError } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { supabaseAdmin } from '../utils/supabase.ts'
-import { backgroundTask } from '../utils/utils.ts'
+import { supabaseClient } from '../utils/supabase.ts'
 import { DEFAULT_RETRY_PARAMS, RetryBucket } from './retry.ts'
 // Cache settings
 const PREVIEW_AUTH_CACHE_PATH = '/.preview-auth'
@@ -180,26 +179,15 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
     // Use admin client - preview is public when allow_preview is enabled
     const supabase = supabaseAdmin(c)
 
-    // Get app settings to check if preview is enabled (case-insensitive since frontend lowercases)
-    const { data: appData, error: appError } = await supabase
-      .from('apps')
-      .select('app_id, allow_preview')
-      .ilike('app_id', appId)
-      .single()
+  // Use authenticated client - RLS will enforce access based on JWT
+  const supabase = supabaseClient(c, `Bearer ${token}`)
 
-    if (appError || !appData) {
-      throw simpleError('app_not_found', 'App not found', { appId })
-    }
-
-    // Cache the app auth result
-    setPreviewAuth(c, appId, {
-      actualAppId: appData.app_id,
-      allowPreview: appData.allow_preview ?? false,
-    })
-
-    if (!appData.allow_preview) {
-      throw simpleError('preview_disabled', 'Preview is disabled for this app')
-    }
+  // Get app settings to check if preview is enabled
+  const { data: appData, error: appError } = await supabase
+    .from('apps')
+    .select('allow_preview')
+    .eq('app_id', appId)
+    .single()
 
     actualAppId = appData.app_id
   }
@@ -207,8 +195,13 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   // Check cache for bundle info
   let bundleInfo = await getBundleInfo(c, versionId)
 
-  if (!bundleInfo) {
-    const supabase = supabaseAdmin(c)
+  // Get bundle to check encryption and manifest
+  const { data: bundle, error: bundleError } = await supabase
+    .from('app_versions')
+    .select('id, session_key, manifest_count')
+    .eq('app_id', appId)
+    .eq('id', versionId)
+    .single()
 
     // Get bundle to check encryption and manifest
     const { data: bundle, error: bundleError } = await supabase
@@ -237,8 +230,50 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   }
 
   // Check if bundle has manifest
-  if (!bundleInfo.hasManifest) {
-    throw simpleError('no_manifest', 'Bundle has no manifest and cannot be previewed')
+  if (!bundle.manifest_count || bundle.manifest_count === 0) {
+    return simpleError('no_manifest', 'Bundle has no manifest and cannot be previewed')
+  }
+
+  // Look up the file in manifest - try exact match first, then with common prefixes
+  let manifestEntry: { s3_path: string, file_name: string } | null = null
+
+  // Try exact match first
+  const { data: exactMatch, error: exactError } = await supabase
+    .from('manifest')
+    .select('s3_path, file_name')
+    .eq('app_version_id', versionId)
+    .eq('file_name', filePath)
+    .single()
+
+  if (!exactError && exactMatch) {
+    manifestEntry = exactMatch
+  }
+  else {
+    // Try with common prefixes (www/, public/, dist/)
+    const prefixesToTry = ['www/', 'public/', 'dist/', '']
+    for (const prefix of prefixesToTry) {
+      const tryPath = prefix + filePath
+      if (tryPath === filePath)
+        continue // Already tried exact match
+
+      const { data: prefixMatch, error: prefixError } = await supabase
+        .from('manifest')
+        .select('s3_path, file_name')
+        .eq('app_version_id', versionId)
+        .eq('file_name', tryPath)
+        .single()
+
+      if (!prefixError && prefixMatch) {
+        manifestEntry = prefixMatch
+        cloudlog({ requestId: c.get('requestId'), message: 'found file with prefix', originalPath: filePath, foundPath: tryPath })
+        break
+      }
+    }
+  }
+
+  if (!manifestEntry) {
+    cloudlog({ requestId: c.get('requestId'), message: 'file not found in manifest', filePath, versionId })
+    return simpleError('file_not_found', 'File not found in bundle', { filePath })
   }
 
   // Preview only works on Cloudflare Workers where the R2 bucket is available.

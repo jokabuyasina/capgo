@@ -2,20 +2,14 @@ import type { Context } from 'hono'
 import type { Database } from '../../utils/supabase.types.ts'
 import { simpleError } from '../../utils/hono.ts'
 import { cloudlog, cloudlogErr } from '../../utils/logging.ts'
-import { checkPermission } from '../../utils/rbac.ts'
-import { supabaseApikey } from '../../utils/supabase.ts'
+import { hasAppRightApikey, supabaseApikey } from '../../utils/supabase.ts'
 import { getEnv } from '../../utils/utils.ts'
 
 interface BuilderStartResponse {
   status: string
 }
 
-async function markBuildAsFailed(
-  c: Context,
-  jobId: string,
-  errorMessage: string,
-  apikeyKey: string,
-): Promise<void> {
+async function markBuildAsFailed(c: Context, jobId: string, errorMessage: string, apikeyKey: string): Promise<void> {
   // Use authenticated client - RLS will enforce access
   const supabase = supabaseApikey(c, apikeyKey)
   const { error: updateError } = await supabase
@@ -85,7 +79,7 @@ export async function startBuild(
         app_id: appId,
         user_id: apikey.user_id,
       })
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+      await markBuildAsFailed(c, jobId, errorMsg, apikey.key)
       alreadyMarkedAsFailed = true
       throw simpleError('unauthorized', errorMsg)
     }
@@ -110,7 +104,7 @@ export async function startBuild(
       })
 
       // Update build_requests to mark as failed
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+      await markBuildAsFailed(c, jobId, errorMsg, apikey.key)
       alreadyMarkedAsFailed = true
       throw simpleError('builder_error', errorMsg)
     }
@@ -126,7 +120,7 @@ export async function startBuild(
 
     // Update build_requests status to running
     // Use authenticated client - RLS will enforce access
-    const supabase = supabaseApikey(c, apikeyKey)
+    const supabase = supabaseApikey(c, apikey.key)
     const { error: updateError } = await supabase
       .from('build_requests')
       .update({
@@ -153,7 +147,7 @@ export async function startBuild(
     // Mark build as failed for any unexpected error (but only if not already marked)
     if (!alreadyMarkedAsFailed && apikeyKey) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+      await markBuildAsFailed(c, jobId, errorMsg, apikey.key)
     }
     throw error
   }

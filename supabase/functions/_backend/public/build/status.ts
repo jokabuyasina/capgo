@@ -2,8 +2,7 @@ import type { Context } from 'hono'
 import type { Database } from '../../utils/supabase.types.ts'
 import { simpleError } from '../../utils/hono.ts'
 import { cloudlog, cloudlogErr } from '../../utils/logging.ts'
-import { checkPermission } from '../../utils/rbac.ts'
-import { recordBuildTime, supabaseApikey } from '../../utils/supabase.ts'
+import { hasAppRightApikey, recordBuildTime, supabaseApikey } from '../../utils/supabase.ts'
 import { getEnv } from '../../utils/utils.ts'
 
 export interface BuildStatusParams {
