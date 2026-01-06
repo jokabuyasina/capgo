@@ -31,21 +31,11 @@ app.post('/', middlewareAuth, async (c) => {
   const authorization = c.get('authorization')
   if (!authorization)
     return simpleError('not_authorize', 'Not authorize')
+    // get user from users
+  cloudlog({ requestId: c.get('requestId'), message: 'auth', auth: c.get('auth')?.userId })
 
-  // Get user ID from auth context (already validated by middlewareAuth)
-  const authContext = c.get('auth')
-  if (!authContext?.userId)
-    throw simpleError('not_authorized', 'Not authorized')
-
-  // Get user ID from auth context (already validated by middlewareAuth)
-  const authContext = c.get('auth')
-  if (!authContext?.userId)
-    throw simpleError('not_authorized', 'Not authorized')
-
-  // Use authenticated client - RLS will enforce access based on JWT
-  const supabase = supabaseClient(c, authorization)
-
-  cloudlog({ requestId: c.get('requestId'), message: 'auth', auth: authContext.userId })
+  // Use authenticated client for data queries - RLS will enforce access
+  const supabase = supabaseClient(c, authorization!)
   const { data: org, error: dbError } = await supabase
     .from('orgs')
     .select('customer_id')

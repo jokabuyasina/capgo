@@ -3,7 +3,7 @@ import { Hono } from 'hono/tiny'
 import { z } from 'zod/mini'
 import { parseBody, quickError, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { supabaseClient, supabaseAdmin as useSupabaseAdmin } from '../utils/supabase.ts'
+import { supabaseAdmin as useSupabaseAdmin, supabaseClient } from '../utils/supabase.ts'
 
 interface ValidatePasswordCompliance {
   email: string
@@ -63,8 +63,6 @@ app.post('/', async (c) => {
   }
 
   const body = validationResult.data
-  const { password: _password, ...bodyWithoutPassword } = body
-  cloudlog({ requestId: c.get('requestId'), context: 'validate_password_compliance raw body', rawBody: bodyWithoutPassword })
   const supabaseAdmin = useSupabaseAdmin(c)
 
   // Get the org's password policy - need admin for initial lookup
@@ -102,8 +100,6 @@ app.post('/', async (c) => {
     cloudlog({ requestId: c.get('requestId'), context: 'validate_password_compliance - login failed', error: signInError?.message })
     return quickError(401, 'invalid_credentials', 'Invalid email or password')
   }
-
-  const userId = signInData.user.id
 
   // Use authenticated client for subsequent queries - RLS will enforce access
   const supabase = supabaseClient(c, `Bearer ${signInData.session.access_token}`)

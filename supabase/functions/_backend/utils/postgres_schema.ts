@@ -205,5 +205,3 @@ export const sso_audit_logs = pgTable('sso_audit_logs', {
   error_message: text('error_message'),
   metadata: text('metadata'),
 })
-=======
->>>>>>> 198334e8d (fix: prepare sso updates)
