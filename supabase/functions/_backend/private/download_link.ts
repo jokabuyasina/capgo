@@ -28,6 +28,11 @@ app.post('/', middlewareAuth, async (c) => {
   const supabase = supabaseClient(c, authorization)
 
   // Get current user ID from JWT
+  const { data: auth, error } = await supabase.auth.getUser()
+  if (error || !auth?.user?.id)
+    return simpleError('not_authorize', 'Not authorize')
+
+  // Get current user ID from JWT
   const authContext = c.get('auth')
   if (!authContext?.userId)
     throw simpleError('not_authorized', 'Not authorized')
@@ -41,7 +46,7 @@ app.post('/', middlewareAuth, async (c) => {
     .eq('id', body.id)
     .single()
 
-  const ownerOrg = bundle?.owner_org?.created_by
+  const ownerOrg = bundle?.owner_org.created_by
 
   if (getBundleError) {
     throw simpleError('cannot_get_bundle', 'Cannot get bundle', { getBundleError })

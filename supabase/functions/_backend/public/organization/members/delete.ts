@@ -5,7 +5,7 @@ import { z } from 'zod/mini'
 import { BRES, quickError, simpleError } from '../../../utils/hono.ts'
 import { cloudlog } from '../../../utils/logging.ts'
 import { checkPermission } from '../../../utils/rbac.ts'
-import { supabaseApikey } from '../../../utils/supabase.ts'
+import { supabaseAdmin, supabaseApikey } from '../../../utils/supabase.ts'
 
 const deleteBodySchema = z.object({
   orgId: z.string(),
@@ -24,10 +24,8 @@ export async function deleteMember(c: Context<MiddlewareKeyVariables>, bodyRaw: 
     throw simpleError('cannot_access_organization', 'You can\'t access this organization', { orgId: body.orgId })
   }
 
-  // Use authenticated client for data queries - RLS will enforce access
-  const supabase = supabaseApikey(c, apikey.key)
-
-  const { data: userData, error: userError } = await supabase
+  // Use admin client to lookup user by email - RLS on users table prevents cross-user lookups
+  const { data: userData, error: userError } = await supabaseAdmin(c)
     .from('users')
     .select('id')
     .eq('email', body.email)
@@ -36,6 +34,9 @@ export async function deleteMember(c: Context<MiddlewareKeyVariables>, bodyRaw: 
   if (userError || !userData) {
     throw quickError(404, 'user_not_found', 'User not found', { error: userError })
   }
+
+  // Use authenticated client for the delete operation - RLS will enforce org access
+  const supabase = supabaseApikey(c, c.get('capgkey') as string)
   cloudlog({ requestId: c.get('requestId'), message: 'userData.id', data: userData.id })
   cloudlog({ requestId: c.get('requestId'), message: 'body.orgId', data: body.orgId })
   const { error } = await supabase
