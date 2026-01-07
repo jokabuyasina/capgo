@@ -406,8 +406,18 @@ AS $$
 DECLARE
   v_org record;
   v_already_member boolean;
+  v_stored_email text;
 BEGIN
-  -- No auth.uid() check - this is an internal function for triggers
+  -- Validate caller identity: p_user_id must match authenticated user
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: user_id mismatch';
+  END IF;
+  
+  -- Validate email matches the stored email for this user
+  SELECT email INTO v_stored_email FROM auth.users WHERE id = p_user_id;
+  IF v_stored_email IS NULL OR lower(v_stored_email) != lower(p_email) THEN
+    RAISE EXCEPTION 'Unauthorized: email mismatch';
+  END IF;
   
   -- Find organizations with this SSO provider that have auto-join enabled
   FOR v_org IN
@@ -511,17 +521,17 @@ AS $$
 DECLARE
   v_domain text;
   v_org record;
-  v_auth_email text;
+  v_stored_email text;
 BEGIN
-  -- Authorization: allow if user_id matches OR caller has service_role privileges OR called from trigger (auth.uid() is NULL)
-  IF auth.uid() IS NOT NULL AND p_user_id != auth.uid() AND auth.jwt() ->> 'role' != 'service_role' THEN
-    RAISE EXCEPTION 'Unauthorized: cannot join other users to orgs (user_id mismatch)';
+  -- Validate caller identity: p_user_id must match authenticated user
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: user_id mismatch';
   END IF;
   
-  -- Email validation: ensure p_email matches the email in auth.users for p_user_id
-  SELECT email INTO v_auth_email FROM auth.users WHERE id = p_user_id;
-  IF v_auth_email IS NULL OR lower(v_auth_email) != lower(p_email) THEN
-    RAISE EXCEPTION 'Unauthorized: email mismatch for user';
+  -- Validate email matches the stored email for this user
+  SELECT email INTO v_stored_email FROM auth.users WHERE id = p_user_id;
+  IF v_stored_email IS NULL OR lower(v_stored_email) != lower(p_email) THEN
+    RAISE EXCEPTION 'Unauthorized: email mismatch';
   END IF;
   
   v_domain := lower(split_part(p_email, '@', 2));
@@ -1000,8 +1010,8 @@ CREATE POLICY "Org admins can view org SSO audit logs"
     )
   );
 
--- NOTE: No INSERT policy needed - SECURITY DEFINER functions bypass RLS
--- Removing overly permissive policy that allowed any authenticated user to insert audit logs
+-- Note: No INSERT policy needed for sso_audit_logs since SECURITY DEFINER
+-- functions bypass RLS. Only service_role should insert directly.
 
 -- ============================================================================
 -- GRANTS: Ensure proper permissions
@@ -1047,8 +1057,14 @@ EXECUTE ON FUNCTION public.auto_enroll_sso_user TO authenticated;
 GRANT
 EXECUTE ON FUNCTION public.auto_join_user_to_orgs_by_email TO authenticated;
 
--- NOTE: Trigger functions should NOT be granted to authenticated - they are only called by DB triggers
--- Only postgres and supabase_auth_admin (trigger context) should have EXECUTE permissions
+-- Revoke public/authenticated access to trigger functions (DB triggers only)
+REVOKE
+EXECUTE ON FUNCTION public.trigger_auto_join_on_user_create
+FROM PUBLIC;
+
+REVOKE
+EXECUTE ON FUNCTION public.trigger_auto_join_on_user_update
+FROM PUBLIC;
 
 -- Grant special permissions to auth admin for trigger functions
 GRANT
