@@ -30,13 +30,13 @@ function buildSupabaseDashboardLink(c: Context, customerId: string): string | nu
 
   // Local Supabase Studio runs on port 54323
   if (isLocalSupabase(c))
-    return `http://127.0.0.1:54323/project/default/table?table=orgs&schema=public&filter=customer_id%3Aeq%3A${customerId}`
+    return `http://127.0.0.1:54323/project/default/editor/445780?schema=public&filter=customer_id%3Aeq%3A${customerId}`
 
   const projectId = getSupabaseProjectId(c)
   if (!projectId)
     return null
-  // Use table name 'orgs' instead of hardcoded table ID for portability
-  return `https://supabase.com/dashboard/project/${projectId}/editor?table=orgs&schema=public&filter=customer_id%3Aeq%3A${customerId}`
+  // 445780 is the orgs table ID in Supabase
+  return `https://supabase.com/dashboard/project/${projectId}/editor/445780?schema=public&filter=customer_id%3Aeq%3A${customerId}`
 }
 
 export type StripeEnvironment = 'live' | 'test'
@@ -439,7 +439,6 @@ export async function createCustomer(c: Context, email: string, userId: string, 
   }
   if (baseConsoleUrl) {
     metadata.log_as = `${baseConsoleUrl}/log-as/${userId}`
-    // https://supabase.com/dashboard/project/xvwzpoazmxkqosrdewyv/editor/445780?schema=public&filter=customer_id%3Aeq%3Acus_LR8PMu6exnGSuZ
   }
   if (!existInEnv(c, 'STRIPE_SECRET_KEY')) {
     cloudlog({ requestId: c.get('requestId'), message: 'createCustomer no stripe key', email, userId, name })
@@ -456,19 +455,7 @@ export async function createCustomer(c: Context, email: string, userId: string, 
   const supabaseLink = buildSupabaseDashboardLink(c, customer.id)
   if (supabaseLink) {
     metadata.supabase = supabaseLink
-    try {
-      await getStripe(c).customers.update(customer.id, { metadata })
-    }
-    catch (error: any) {
-      cloudlogErr({
-        requestId: c.get('requestId'),
-        message: 'Failed to update Stripe customer metadata',
-        customerId: customer.id,
-        metadata,
-        error: error?.message || 'Unknown error',
-      })
-      // Continue despite metadata update failure - customer is already created
-    }
+    await getStripe(c).customers.update(customer.id, { metadata })
   }
   return customer
 }
