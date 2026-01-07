@@ -11,7 +11,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { APIKEY_RLS_ALL, APP_NAME_RLS, BASE_URL, ORG_ID_2FA_TEST, ORG_ID_RLS, POSTGRES_URL, USER_ID_RLS } from './test-utils.ts'
+import { APIKEY_RLS_ALL, APP_NAME_RLS, BASE_URL, ORG_ID_RLS, POSTGRES_URL, USER_ID_RLS } from './test-utils.ts'
 
 // Use dedicated RLS test user's API key to avoid conflicts with other tests
 const headersRLS = {

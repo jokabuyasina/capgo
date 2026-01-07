@@ -25,15 +25,10 @@ TO authenticated, anon
 USING (
     public.check_min_rights(
         'read'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 );
 
@@ -44,15 +39,10 @@ TO authenticated, anon
 WITH CHECK (
     public.check_min_rights(
         'admin'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 );
 
@@ -63,29 +53,19 @@ TO authenticated, anon
 USING (
     public.check_min_rights(
         'admin'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 )
 WITH CHECK (
     public.check_min_rights(
         'admin'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 );
 
@@ -96,15 +76,10 @@ TO authenticated, anon
 USING (
     public.check_min_rights(
         'admin'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 );
 
@@ -125,15 +100,10 @@ TO authenticated, anon
 USING (
     public.check_min_rights(
         'read'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 );
 
@@ -144,15 +114,10 @@ TO authenticated, anon
 WITH CHECK (
     public.check_min_rights(
         'admin'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 );
 
@@ -163,14 +128,9 @@ TO authenticated, anon
 USING (
     public.check_min_rights(
         'admin'::public.user_min_right,
-        (
-            SELECT
-                public.get_identity(
-                    '{read,upload,write,all}'::public.key_mode []
-                )
-        ),
+        (SELECT public.get_identity('{read,upload,write,all}'::public.key_mode[])),
         org_id,
-        null::character varying,
-        null::bigint
+        null::CHARACTER VARYING,
+        null::BIGINT
     )
 );
