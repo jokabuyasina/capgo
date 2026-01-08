@@ -11,6 +11,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const route = useRoute()
 
 // Device configurations
 const devices = {
@@ -33,9 +34,16 @@ const selectedDevice = ref<DeviceType>('iphone')
 const qrCodeDataUrl = ref('')
 const isMobile = ref(false)
 
+// Check if we're on mobile and detect fullscreen query param
 onMounted(() => {
   checkMobile()
   window.addEventListener('resize', checkMobile)
+
+  // Check for fullscreen query param
+  if (route.query.fullscreen === 'true') {
+    isFullscreen.value = true
+  }
+
   generateQRCode()
 })
 

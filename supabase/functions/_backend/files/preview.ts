@@ -3,10 +3,10 @@ import type { MiddlewareKeyVariables } from '../utils/hono.ts'
 import { Buffer } from 'node:buffer'
 import { brotliDecompressSync } from 'node:zlib'
 import { getRuntimeKey } from 'hono/adapter'
-import { CacheHelper } from '../utils/cache.ts'
-import { simpleError } from '../utils/hono.ts'
+import { Hono } from 'hono/tiny'
+import { simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { supabaseClient } from '../utils/supabase.ts'
+import { supabaseAdmin } from '../utils/supabase.ts'
 import { DEFAULT_RETRY_PARAMS, RetryBucket } from './retry.ts'
 // Cache settings
 const PREVIEW_AUTH_CACHE_PATH = '/.preview-auth'
@@ -165,28 +165,15 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
 
   cloudlog({ requestId: c.get('requestId'), message: 'preview subdomain request', hostname, appId, versionId, filePath })
 
-  // Check cache for app preview authorization first
-  let actualAppId: string
-  const cachedAuth = await getPreviewAuth(c, appId)
+  // Use admin client - preview is public when allow_preview is enabled
+  // Security relies on the obscure subdomain format and the allow_preview setting
+  const supabase = supabaseAdmin(c)
 
-  if (cachedAuth) {
-    if (!cachedAuth.allowPreview) {
-      throw simpleError('preview_disabled', 'Preview is disabled for this app')
-    }
-    actualAppId = cachedAuth.actualAppId
-  }
-  else {
-    // Use admin client - preview is public when allow_preview is enabled
-    const supabase = supabaseAdmin(c)
-
-  // Use authenticated client - RLS will enforce access based on JWT
-  const supabase = supabaseClient(c, `Bearer ${token}`)
-
-  // Get app settings to check if preview is enabled
+  // Get app settings to check if preview is enabled (case-insensitive since frontend lowercases)
   const { data: appData, error: appError } = await supabase
     .from('apps')
-    .select('allow_preview')
-    .eq('app_id', appId)
+    .select('app_id, allow_preview')
+    .ilike('app_id', appId)
     .single()
 
     actualAppId = appData.app_id
@@ -195,11 +182,14 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   // Check cache for bundle info
   let bundleInfo = await getBundleInfo(c, versionId)
 
+  // Use the actual app_id from DB (correctly cased) for subsequent queries
+  const actualAppId = appData.app_id
+
   // Get bundle to check encryption and manifest
   const { data: bundle, error: bundleError } = await supabase
     .from('app_versions')
     .select('id, session_key, manifest_count')
-    .eq('app_id', appId)
+    .eq('app_id', actualAppId)
     .eq('id', versionId)
     .single()
 
@@ -341,15 +331,6 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
     headers.set('X-Content-Type-Options', 'nosniff')
 
     cloudlog({ requestId: c.get('requestId'), message: 'serving preview file from R2 (subdomain)', filePath: manifestEntry.file_name, contentType, isBrotli })
-
-    // If the file is brotli compressed, decompress it before serving
-    // CLI compresses with node:zlib createBrotliCompress(), we decompress with brotliDecompressSync
-    // Cloudflare Workers strip Content-Encoding: br header so we must decompress server-side
-    if (isBrotli && object.body) {
-      const compressedData = await object.arrayBuffer()
-      const decompressed = brotliDecompressSync(Buffer.from(compressedData))
-      return new Response(decompressed, { headers })
-    }
 
     return new Response(object.body, { headers })
   }
