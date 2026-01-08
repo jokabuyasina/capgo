@@ -34,14 +34,6 @@ const hasNoApps = computed(() => {
     && !lacksSecurityAccess.value
 })
 
-// Payment failed state (subscription required)
-const paymentFailed = computed(() => {
-  return organizationStore.currentOrganizationFailed && !lacksSecurityAccess.value
-})
-
-// Should blur the content (either no apps OR payment failed)
-const shouldBlurContent = computed(() => hasNoApps.value || paymentFailed.value)
-
 async function getMyApps() {
   await organizationStore.awaitInitialLoad()
 
@@ -87,15 +79,11 @@ displayStore.defaultBack = '/app'
   <div>
     <div class="overflow-hidden pb-4 h-full">
       <div class="relative overflow-y-auto px-4 pt-2 mx-auto mb-8 w-full h-full sm:px-6 md:pt-8 lg:px-8 max-w-9xl max-h-fit">
-        <!-- Only show FailedCard for security access issues (2FA/password) -->
-        <FailedCard v-if="lacksSecurityAccess" />
-
-        <!-- Dashboard content - blurred when no apps or payment failed -->
-        <div :class="{ 'blur-sm pointer-events-none select-none': shouldBlurContent }">
-          <Usage v-if="!lacksSecurityAccess" :force-demo="paymentFailed" />
+        <FailedCard />
+        <div :class="{ 'blur-sm pointer-events-none select-none': hasNoApps }">
+          <Usage v-if="!organizationStore.currentOrganizationFailed && !lacksSecurityAccess" />
         </div>
-
-        <!-- Overlay for empty state (no apps) -->
+        <!-- Overlay for empty state (only shows when user has no apps and is in good standing) -->
         <div
           v-if="hasNoApps"
           class="flex absolute inset-0 z-10 flex-col justify-center items-center bg-white/60 dark:bg-gray-900/60"
@@ -116,9 +104,6 @@ displayStore.defaultBack = '/app'
             </router-link>
           </div>
         </div>
-
-        <!-- Overlay for payment failure -->
-        <PaymentRequiredModal v-if="paymentFailed" />
       </div>
     </div>
   </div>
