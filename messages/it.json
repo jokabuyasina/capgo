@@ -434,7 +434,7 @@
   "characters-minimum": "caratteri minimo",
   "check-email": "Si prega di controllare la tua email e verificare",
   "check-on-web": "Controlla sul sito web",
-  "checksum": "Somma di controllo",
+  "checksum": "Checksum",
   "checksum-crc32-desc": "v5 senza crittografia",
   "checksum-sha256-desc": "v5 + crittografia, v6, v7, v8",
   "checksum-type-info": "Algoritmo di checksum",
