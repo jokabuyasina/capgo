@@ -731,6 +731,7 @@
   "device-pixel": "Pixel",
   "devices": "Geräte",
   "devices-trend": "Trend Aktiver Geräte",
+  "device-platform-trend": "Geräteplattform-Trend (iOS vs Android)",
   "dialog-with-custom-input": "Dialog mit benutzerdefinierter Eingabe",
   "did-not-recive-confirm-email": "Haben Sie keine Bestätigungs-E-Mail erhalten?",
   "disable": "Deaktivieren",

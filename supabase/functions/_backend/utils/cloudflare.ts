@@ -817,36 +817,27 @@ export interface DevicesByPlatform {
 }
 
 export async function readLastMonthDevicesByPlatformCF(c: Context): Promise<DevicesByPlatform> {
-  if (!c.env.DEVICE_USAGE) {
+  if (!c.env.DEVICE_INFO) {
     return { total: 0, ios: 0, android: 0 }
   }
 
   const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
   // Platform: double1 = 0 for android, 1 for ios
-  const baseWhere = `timestamp >= toDateTime('${formatDateCF(oneMonthAgo)}') AND timestamp < now()`
-  const totalQuery = `SELECT index1 AS app_id, COUNT(DISTINCT blob1) AS total FROM device_usage WHERE ${baseWhere} GROUP BY index1`
-  const platformQuery = `SELECT index1 AS app_id, double1 AS platform, COUNT(DISTINCT blob1) AS total FROM device_usage WHERE ${baseWhere} GROUP BY index1, double1`
+  const query = `SELECT
+    COUNT(DISTINCT blob1) AS total,
+    COUNT(DISTINCT CASE WHEN double1 = 1 THEN blob1 END) AS ios,
+    COUNT(DISTINCT CASE WHEN double1 = 0 THEN blob1 END) AS android
+  FROM device_info
+  WHERE timestamp >= toDateTime('${formatDateCF(oneMonthAgo)}')
+    AND timestamp < now()`
 
-  cloudlog({ requestId: c.get('requestId'), message: 'readLastMonthDevicesByPlatformCF queries', totalQuery, platformQuery })
+  cloudlog({ requestId: c.get('requestId'), message: 'readLastMonthDevicesByPlatformCF query', query })
   try {
-    const [totalRes, platformRes] = await Promise.all([
-      runQueryToCFA<{ app_id: string, total: number }>(c, totalQuery),
-      runQueryToCFA<{ app_id: string, platform: number, total: number }>(c, platformQuery),
-    ])
-
-    const total = totalRes.reduce((sum, row) => sum + (row.total || 0), 0)
-    let ios = 0
-    let android = 0
-    platformRes.forEach((row) => {
-      if (row.platform === 1)
-        ios += row.total || 0
-      else if (row.platform === 0)
-        android += row.total || 0
-    })
+    const res = await runQueryToCFA<{ total: number, ios: number, android: number }>(c, query)
     return {
-      total,
-      ios,
-      android,
+      total: res[0]?.total || 0,
+      ios: res[0]?.ios || 0,
+      android: res[0]?.android || 0,
     }
   }
   catch (e) {
