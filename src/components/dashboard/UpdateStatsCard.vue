@@ -80,20 +80,16 @@ const actionDisplayNames = computed(() => ({
   fail: capitalize(t('failed')),
 }))
 
-// Generate demo data when forceDemo is true
+// Check if we have real data (at least one non-zero value)
+const hasRealData = computed(() => {
+  return totalInstalled.value > 0 || totalFailed.value > 0 || totalRequested.value > 0
+})
+
+// Generate demo data when no real data
 const demoStats = computed(() => generateDemoUpdateStatsData(30))
 
-// Demo mode: show demo data only when forceDemo is true OR user has no apps
-// If user has apps, ALWAYS show real data (even if empty)
-const isDemoMode = computed(() => {
-  if (props.forceDemo)
-    return true
-  // If user has apps, never show demo data
-  if (dashboardAppsStore.apps.length > 0)
-    return false
-  // No apps and store is loaded = show demo
-  return dashboardAppsStore.isLoaded
-})
+// Demo mode detection
+const isDemoMode = computed(() => !hasRealData.value && !isLoading.value)
 
 // Effective values for display
 const effectiveChartData = computed(() => isDemoMode.value ? demoStats.value.total : chartUpdateData.value)
@@ -113,7 +109,7 @@ const effectiveTotalRequested = computed(() => isDemoMode.value ? calculateDemoT
 const effectiveTotalUpdates = computed(() => effectiveTotalInstalled.value + effectiveTotalFailed.value + effectiveTotalRequested.value)
 const effectiveLastDayEvolution = computed(() => isDemoMode.value ? calculateDemoEvolution(demoStats.value.total) : lastDayEvolution.value)
 
-const hasData = computed(() => effectiveTotalUpdates.value > 0 || isDemoMode.value)
+const hasData = computed(() => effectiveChartData.value?.length > 0)
 
 async function calculateStats(forceRefetch = false) {
   const startTime = Date.now()

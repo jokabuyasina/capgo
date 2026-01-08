@@ -2,14 +2,7 @@
 import colors from 'tailwindcss/colors'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  calculateDemoEvolution,
-  calculateDemoTotal,
-  DEMO_APP_NAMES,
-  generateConsistentDemoData,
-  generateDemoDeploymentData,
-  getDemoDayCount,
-} from '~/services/demoChartData'
+import { calculateDemoEvolution, calculateDemoTotal, DEMO_APP_NAMES, generateDemoDeploymentData } from '~/services/demoChartData'
 import { useSupabase } from '~/services/supabase'
 import { useDashboardAppsStore } from '~/stores/dashboardApps'
 import { useOrganizationStore } from '~/stores/organization'
@@ -95,26 +88,18 @@ const deploymentDataByApp = ref<{ [appId: string]: number[] }>({})
 const appNames = ref<{ [appId: string]: string }>({})
 const isLoading = ref(true)
 
-// Generate consistent demo data where total is derived from per-app breakdown
-const consistentDemoData = computed(() => {
-  const days = getDemoDayCount(props.useBillingPeriod, deploymentData.value.length)
-  return generateConsistentDemoData(days, generateDemoDeploymentData)
-})
+// Check if we have real data
+const hasRealData = computed(() => totalDeployments.value > 0)
 
-const demoDeploymentData = computed(() => consistentDemoData.value.total)
-const demoDataByApp = computed(() => consistentDemoData.value.byApp)
+// Generate demo data
+const demoDeploymentData = computed(() => generateDemoDeploymentData(30))
+const demoDataByApp = computed(() => ({
+  'demo-app-1': generateDemoDeploymentData(30),
+  'demo-app-2': generateDemoDeploymentData(30),
+}))
 
-// Demo mode: show demo data only when forceDemo is true OR user has no apps
-// If user has apps, ALWAYS show real data (even if empty)
-const isDemoMode = computed(() => {
-  if (props.forceDemo)
-    return true
-  // If user has apps, never show demo data
-  if (dashboardAppsStore.apps.length > 0)
-    return false
-  // No apps and store is loaded = show demo
-  return dashboardAppsStore.isLoaded
-})
+// Demo mode detection
+const isDemoMode = computed(() => !hasRealData.value && !isLoading.value)
 
 // Effective values for display
 const effectiveDeploymentData = computed(() => isDemoMode.value ? demoDeploymentData.value : deploymentData.value)

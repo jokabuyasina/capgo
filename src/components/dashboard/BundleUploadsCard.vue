@@ -2,14 +2,7 @@
 import colors from 'tailwindcss/colors'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import {
-  calculateDemoEvolution,
-  calculateDemoTotal,
-  DEMO_APP_NAMES,
-  generateConsistentDemoData,
-  generateDemoBundleUploadsData,
-  getDemoDayCount,
-} from '~/services/demoChartData'
+import { calculateDemoEvolution, calculateDemoTotal, DEMO_APP_NAMES, generateDemoBundleUploadsData } from '~/services/demoChartData'
 import { useSupabase } from '~/services/supabase'
 import { useDashboardAppsStore } from '~/stores/dashboardApps'
 import { useOrganizationStore } from '~/stores/organization'
@@ -94,27 +87,18 @@ const currentCacheOrgId = ref<string | null>(null)
 // Cache for single app name to avoid refetching
 const singleAppNameCache = new Map<string, string>()
 
-// Generate consistent demo data where total is derived from per-app breakdown
-const consistentDemoData = computed(() => {
-  const days = getDemoDayCount(props.useBillingPeriod, bundleData.value.length)
-  return generateConsistentDemoData(days, generateDemoBundleUploadsData)
-})
+// Check if we have real data
+const hasRealData = computed(() => total.value > 0)
 
-const demoBundleData = computed(() => consistentDemoData.value.total)
-const demoDataByApp = computed(() => consistentDemoData.value.byApp)
+// Generate demo data
+const demoBundleData = computed(() => generateDemoBundleUploadsData(30))
+const demoDataByApp = computed(() => ({
+  'demo-app-1': generateDemoBundleUploadsData(30),
+  'demo-app-2': generateDemoBundleUploadsData(30),
+}))
 
-// Demo mode: show demo data only when forceDemo is true OR user has no apps
-// If user has apps, ALWAYS show real data (even if empty)
-const isDemoMode = computed(() => {
-  if (props.forceDemo)
-    return true
-  // If user has apps, never show demo data
-  const dashboardAppsStore = useDashboardAppsStore()
-  if (dashboardAppsStore.apps.length > 0)
-    return false
-  // No apps and store is loaded = show demo
-  return dashboardAppsStore.isLoaded
-})
+// Demo mode detection
+const isDemoMode = computed(() => !hasRealData.value && !isLoading.value)
 
 // Effective values for display
 const effectiveBundleData = computed(() => isDemoMode.value ? demoBundleData.value : bundleData.value)
@@ -123,7 +107,7 @@ const effectiveAppNames = computed(() => isDemoMode.value ? DEMO_APP_NAMES : app
 const effectiveTotal = computed(() => isDemoMode.value ? calculateDemoTotal(demoBundleData.value) : total.value)
 const effectiveLastDayEvolution = computed(() => isDemoMode.value ? calculateDemoEvolution(demoBundleData.value) : lastDayEvolution.value)
 
-const hasData = computed(() => effectiveTotal.value > 0 || isDemoMode.value)
+const hasData = computed(() => effectiveBundleData.value.length > 0)
 
 async function calculateStats(forceRefetch = false) {
   const startTime = Date.now()

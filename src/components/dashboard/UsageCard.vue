@@ -4,11 +4,10 @@ import { getDaysInCurrentMonth } from '~/services/date'
 import {
   calculateDemoEvolution,
   DEMO_APP_NAMES,
-  generateConsistentDemoData,
   generateDemoBandwidthData,
+  generateDemoDataByApp,
   generateDemoMauData,
   generateDemoStorageData,
-  getDemoDayCount,
 } from '~/services/demoChartData'
 import ChartCard from './ChartCard.vue'
 import LineChartStats from './LineChartStats.vue'
@@ -53,72 +52,70 @@ const props = defineProps({
   },
 })
 
-const dataArray = computed(() => {
-  if (!props.data || props.data.length === 0) {
-    return Array.from({ length: getDaysInCurrentMonth() }).fill(undefined) as (number | undefined)[]
-  }
-  return props.data as (number | undefined)[]
-})
-
 // Check if we have real data
 const hasRealData = computed(() => {
-  const arr = dataArray.value ?? []
-  // Has data if there's at least one defined, non-null value (including zero)
-  const hasDefinedData = arr.some(val => val !== undefined && val !== null)
-  // Or has data by app with at least one defined value (guard against non-array entries)
+  const dataArray = props.data as number[]
+  // Has data if there's at least one defined, non-zero value
+  const hasDefinedData = dataArray.some(val => val !== undefined && val !== null && val > 0)
+  // Or has data by app with at least one defined value
   const hasAppData = props.dataByApp && Object.values(props.dataByApp).some((appValues: any) =>
-    Array.isArray(appValues) && appValues.some((val: any) => val !== undefined && val !== null),
+    appValues.some((val: any) => val !== undefined && val !== null && val > 0),
   )
   return hasDefinedData || hasAppData
 })
 
-// Get the appropriate data generator based on chart type
-function getDataGenerator(title: string) {
-  const titleLower = title.toLowerCase()
+// Generate demo data based on title/type
+const demoData = computed(() => {
+  const days = getDaysInCurrentMonth()
+  const titleLower = props.title.toLowerCase()
+
   if (titleLower.includes('active') || titleLower.includes('mau') || titleLower.includes('user')) {
-    return generateDemoMauData
+    return generateDemoMauData(days)
   }
   if (titleLower.includes('storage')) {
-    return generateDemoStorageData
+    return generateDemoStorageData(days)
   }
   if (titleLower.includes('bandwidth')) {
-    return generateDemoBandwidthData
+    return generateDemoBandwidthData(days)
   }
-  return generateDemoMauData
-}
-
-// Generate consistent demo data where total is derived from per-app breakdown
-// Use existing data length or default based on billing period mode
-const consistentDemoData = computed(() => {
-  const dataLength = dataArray.value?.length ?? 0
-  const days = getDemoDayCount(props.useBillingPeriod, dataLength)
-  const generator = getDataGenerator(props.title)
-  return generateConsistentDemoData(days, generator)
+  // Default to MAU-like data
+  return generateDemoMauData(days)
 })
 
-// Demo data accessors that ensure consistency
-const demoData = computed(() => consistentDemoData.value.total)
-const demoDataByApp = computed(() => consistentDemoData.value.byApp)
+const demoDataByApp = computed(() => {
+  const days = getDaysInCurrentMonth()
+  const titleLower = props.title.toLowerCase()
+
+  if (titleLower.includes('active') || titleLower.includes('mau') || titleLower.includes('user')) {
+    return generateDemoDataByApp(days, generateDemoMauData)
+  }
+  if (titleLower.includes('storage')) {
+    return generateDemoDataByApp(days, generateDemoStorageData)
+  }
+  if (titleLower.includes('bandwidth')) {
+    return generateDemoDataByApp(days, generateDemoBandwidthData)
+  }
+  return generateDemoDataByApp(days, generateDemoMauData)
+})
 
 // Use real data or demo data
-const isDemoMode = computed(() => props.forceDemo || (!hasRealData.value && !props.isLoading))
-const effectiveData = computed(() => isDemoMode.value ? demoData.value : dataArray.value)
+const isDemoMode = computed(() => !hasRealData.value && !props.isLoading)
+const effectiveData = computed(() => isDemoMode.value ? demoData.value : props.data as number[])
 const effectiveDataByApp = computed(() => isDemoMode.value ? demoDataByApp.value : props.dataByApp)
 const effectiveAppNames = computed(() => isDemoMode.value ? DEMO_APP_NAMES : props.appNames)
 
 const total = computed(() => {
-  const arr = effectiveData.value
-  // Only consider actual numbers as data (not null/undefined)
-  const hasData = arr.some(val => typeof val === 'number')
-  const sumValues = (values: (number | undefined)[]): number => values.reduce<number>((acc, val) => (typeof val === 'number' ? acc + val : acc), 0)
+  const dataArray = effectiveData.value
+  const hasData = dataArray.some(val => val !== undefined)
+  const sumValues = (values: number[]) => values.reduce((acc, val) => (typeof val === 'number' ? acc + val : acc), 0)
 
   if (hasData) {
     return sumValues(arr)
   }
 
   if (effectiveDataByApp.value && Object.keys(effectiveDataByApp.value).length > 0) {
-    return Object.values(effectiveDataByApp.value).reduce((totalSum: number, appValues: any) => {
-      return totalSum + sumValues(appValues as (number | undefined)[])
+    return Object.values(effectiveDataByApp.value).reduce((totalSum, appValues: any) => {
+      return totalSum + sumValues(appValues)
     }, 0)
   }
 
@@ -127,10 +124,10 @@ const total = computed(() => {
 
 const lastDayEvolution = computed(() => {
   if (isDemoMode.value) {
-    return calculateDemoEvolution(effectiveData.value.filter((v): v is number => typeof v === 'number'))
+    return calculateDemoEvolution(effectiveData.value)
   }
 
-  const arr = dataArray.value ?? []
+  const arr = props.data as number[]
   const arrWithoutUndefined = arr.filter((val: any) => val !== undefined)
 
   if (arrWithoutUndefined.length < 2) {
@@ -147,11 +144,7 @@ const lastDayEvolution = computed(() => {
   return ((lastValue - previousValue) / previousValue) * 100
 })
 
-const hasChartData = computed(() => {
-  const arr = effectiveData.value
-  // Consider any defined, non-null value (including zero) as valid chart data
-  return arr.some(val => val !== undefined && val !== null)
-})
+const hasData = computed(() => effectiveData.value.length > 0)
 </script>
 
 <template>
