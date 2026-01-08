@@ -817,7 +817,7 @@ export interface DevicesByPlatform {
 }
 
 export async function readLastMonthDevicesByPlatformCF(c: Context): Promise<DevicesByPlatform> {
-  if (!c.env.DEVICE_INFO) {
+  if (!c.env.DEVICE_USAGE) {
     return { total: 0, ios: 0, android: 0 }
   }
 
@@ -827,7 +827,7 @@ export async function readLastMonthDevicesByPlatformCF(c: Context): Promise<Devi
     COUNT(DISTINCT blob1) AS total,
     COUNT(DISTINCT CASE WHEN double1 = 1 THEN blob1 END) AS ios,
     COUNT(DISTINCT CASE WHEN double1 = 0 THEN blob1 END) AS android
-  FROM device_info
+  FROM device_usage
   WHERE timestamp >= toDateTime('${formatDateCF(oneMonthAgo)}')
     AND timestamp < now()`
 
