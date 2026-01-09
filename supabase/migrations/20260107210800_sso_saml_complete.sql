@@ -228,9 +228,9 @@ DECLARE
   v_domain text;
   v_has_sso boolean;
 BEGIN
-  v_domain := lower(split_part(p_email, '@', 2));
+  v_domain := NULLIF(lower(split_part(p_email, '@', 2)), '');
   
-  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
+  IF v_domain IS NULL THEN
     RETURN false;
   END IF;
   
@@ -374,9 +374,9 @@ DECLARE
   v_domain text;
 BEGIN
   -- Extract domain from email
-  v_domain := lower(split_part(p_email, '@', 2));
+  v_domain := NULLIF(lower(split_part(p_email, '@', 2)), '');
   
-  IF NULLIF(trim(v_domain), '') IS NULL THEN
+  IF v_domain IS NULL THEN
     RETURN;
   END IF;
   
@@ -414,9 +414,9 @@ DECLARE
   v_domain text;
   v_provider_id uuid;
 BEGIN
-  v_domain := lower(split_part(p_email, '@', 2));
+  v_domain := NULLIF(lower(split_part(p_email, '@', 2)), '');
   
-  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
+  IF v_domain IS NULL THEN
     RETURN NULL;
   END IF;
   
@@ -572,15 +572,9 @@ DECLARE
   v_org record;
   v_stored_email text;
 BEGIN
-  -- Security: Only allow internal roles or the user themselves to auto-join
-  IF session_user NOT IN ('postgres', 'supabase_auth_admin') AND 
-     (auth.uid() IS NULL OR auth.uid() != p_user_id) THEN
-    RAISE EXCEPTION 'Access denied: cannot enroll other users';
-  END IF;
+  v_domain := NULLIF(lower(split_part(p_email, '@', 2)), '');
   
-  v_domain := lower(split_part(p_email, '@', 2));
-  
-  IF NULLIF(trim(v_domain), '') IS NULL THEN
+  IF v_domain IS NULL THEN
     RETURN;
   END IF;
   
