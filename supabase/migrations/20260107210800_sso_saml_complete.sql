@@ -97,8 +97,7 @@ verified_at timestamptz,
 created_at timestamptz NOT NULL DEFAULT now(),
 
 -- Constraints
-CONSTRAINT saml_domain_mappings_domain_connection_unique UNIQUE(domain, sso_connection_id)
-);
+CONSTRAINT saml_domain_mappings_domain_unique UNIQUE(domain) );
 
 COMMENT ON
 TABLE public.saml_domain_mappings IS 'Maps email domains to SSO providers for auto-join';
@@ -306,6 +305,11 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.get_sso_provider_id_for_user IS 'Retrieves SSO provider ID from user metadata. Only callable by the user themselves or system triggers.';
+
+-- Revoke execution rights from authenticated users (function should only be used internally)
+REVOKE
+EXECUTE ON FUNCTION public.get_sso_provider_id_for_user
+FROM authenticated;
 
 -- Helper function to check if org already has SSO configured
 CREATE OR REPLACE FUNCTION public.org_has_sso_configured(p_org_id uuid)

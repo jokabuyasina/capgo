@@ -2,7 +2,6 @@ import type { MiddlewareKeyVariables } from '../utils/hono.ts'
 import { Hono } from 'hono/tiny'
 import { BRES, parseBody, quickError, simpleError } from '../utils/hono.ts'
 import { middlewareKey } from '../utils/hono_middleware.ts'
-import { cloudlog } from '../utils/logging.ts'
 import { logsnag } from '../utils/logsnag.ts'
 import { checkPermission } from '../utils/rbac.ts'
 import { s3 } from '../utils/s3.ts'
@@ -17,11 +16,7 @@ export const app = new Hono<MiddlewareKeyVariables>()
 
 app.delete('/', middlewareKey(['all', 'write', 'upload']), async (c) => {
   const body = await parseBody<DataUpload>(c)
-  cloudlog({ requestId: c.get('requestId'), message: 'delete failed version body', body })
-  const apikey = c.get('apikey')
   const capgkey = c.get('capgkey') as string
-  cloudlog({ requestId: c.get('requestId'), message: 'apikey', apikey })
-  cloudlog({ requestId: c.get('requestId'), message: 'capgkey', capgkey })
   const { data: userId, error: _errorUserId } = await supabaseApikey(c, capgkey)
     .rpc('get_user_id', { apikey: capgkey, app_id: body.app_id })
   if (_errorUserId) {
@@ -94,6 +89,5 @@ app.delete('/', middlewareKey(['all', 'write', 'upload']), async (c) => {
     icon: '💀',
   })
 
-  cloudlog({ requestId: c.get('requestId'), message: 'delete version', id: version.id })
-  return c.json(BRES)
+  return c.json({ status: 'Version deleted' })
 })
