@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { getEndpointUrl, getSupabaseClient, headersInternal, POSTGRES_URL, USER_ADMIN_EMAIL, USER_ID } from './test-utils.ts'
+import { BASE_URL, getSupabaseClient, headersInternal, POSTGRES_URL, USER_ADMIN_EMAIL, USER_ID } from './test-utils.ts'
 
 const TEST_SSO_ORG_ID = randomUUID()
 const TEST_SSO_ORG_NAME = `SSO Test Org ${randomUUID()}`
@@ -33,73 +33,6 @@ const TEST_METADATA_XML = `<?xml version="1.0"?>
 
 // Mock Deno.Command to prevent actual CLI execution
 const originalDenoCommand = (globalThis as any).Deno?.Command
-
-// Helper function to get or create test auth user with metadata
-async function getOrCreateTestAuthUser(email: string, metadata?: { sso_provider_id?: string }): Promise<string | null> {
-  try {
-    // Try to create user
-    const { error: authUserError, data: authUserData } = await getSupabaseClient().auth.admin.createUser({
-      email,
-      email_confirm: true,
-      user_metadata: metadata || {},
-    })
-
-    if (authUserData?.user) {
-      console.log('Created auth user via admin API:', authUserData.user.id)
-      return authUserData.user.id
-    }
-
-    // No user returned - try to find existing
-    console.log('Auth admin API returned no user, searching for existing')
-    
-    // Check public.users first
-    const { data: existingUser } = await getSupabaseClient()
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle()
-
-    if (existingUser) {
-      console.log('Found existing user in public.users:', existingUser.id)
-      return existingUser.id
-    }
-
-    // Check auth.users
-    const { data: authUsers } = await getSupabaseClient().auth.admin.listUsers()
-    const existingAuthUser = authUsers?.users?.find(u => u.email === email)
-    if (existingAuthUser) {
-      console.log('Found existing user in auth.users:', existingAuthUser.id)
-      return existingAuthUser.id
-    }
-
-    console.log('No existing user found')
-    return null
-  }
-  catch (err: any) {
-    console.log('Auth user creation threw exception:', err.message)
-    
-    // Try to find existing user
-    const { data: existingUser } = await getSupabaseClient()
-      .from('users')
-      .select('id')
-      .eq('email', email)
-      .maybeSingle()
-
-    if (existingUser) {
-      console.log('Found existing user after exception:', existingUser.id)
-      return existingUser.id
-    }
-
-    const { data: authUsers } = await getSupabaseClient().auth.admin.listUsers()
-    const existingAuthUser = authUsers?.users?.find(u => u.email === email)
-    if (existingAuthUser) {
-      console.log('Found existing auth user after exception:', existingAuthUser.id)
-      return existingAuthUser.id
-    }
-
-    return null
-  }
-}
 
 // Postgres pool for direct database access (to disable triggers)
 let pgPool: Pool | null = null
@@ -190,49 +123,21 @@ beforeAll(async () => {
 }, 120000)
 
 afterAll(async () => {
-  // Re-enable triggers with retry logic
+  // Re-enable triggers
   if (pgPool) {
-    const maxRetries = 3
-    const retryDelay = 1000 // 1 second
-    let retryCount = 0
-    let success = false
-
-    while (retryCount < maxRetries && !success) {
-      try {
-        await pgPool.query(`
-          -- Re-enable edge function HTTP triggers
-          ALTER TABLE public.users ENABLE TRIGGER on_user_create;
-          ALTER TABLE public.users ENABLE TRIGGER on_user_update;
-          ALTER TABLE public.orgs ENABLE TRIGGER on_org_create;
-          ALTER TABLE public.orgs ENABLE TRIGGER on_organization_delete;
-        `)
-        
-        // Verify triggers were actually enabled
-        const { rows } = await pgPool.query(`
-          SELECT tgname, tgenabled 
-          FROM pg_trigger 
-          WHERE tgname IN ('on_user_create', 'on_user_update', 'on_org_create', 'on_organization_delete')
-        `)
-        
-        const allEnabled = rows.every((row: any) => row.tgenabled === 'O')
-        if (allEnabled) {
-          console.log('✓ Re-enabled edge function triggers')
-          success = true
-        } else {
-          throw new Error('Not all triggers were enabled')
-        }
-      }
-      catch (err: any) {
-        retryCount++
-        if (retryCount < maxRetries) {
-          console.warn(`Failed to re-enable triggers (attempt ${retryCount}/${maxRetries}):`, err.message)
-          await new Promise(resolve => setTimeout(resolve, retryDelay * retryCount)) // Exponential backoff
-        } else {
-          console.error('Could not re-enable triggers after max retries:', err.message)
-        }
-      }
+    try {
+      await pgPool.query(`
+        -- Re-enable edge function HTTP triggers
+        ALTER TABLE public.users ENABLE TRIGGER on_user_create;
+        ALTER TABLE public.users ENABLE TRIGGER on_user_update;
+        ALTER TABLE public.orgs ENABLE TRIGGER on_org_create;
+        ALTER TABLE public.orgs ENABLE TRIGGER on_organization_delete;
+      `)
+      console.log('✓ Re-enabled edge function triggers')
     }
-    
+    catch (err: any) {
+      console.warn('Could not re-enable triggers:', err.message)
+    }
     await pgPool.end()
     pgPool = null
   }
@@ -326,13 +231,93 @@ describe('auto-join integration', () => {
       throw new Error(`org_saml_connections insert failed: ${ssoError.message}`)
     }
 
-    // Create or get test user using helper
-    const actualUserId = await getOrCreateTestAuthUser(testUserEmail, {
-      sso_provider_id: ssoProviderId,
-    })
+    // Simulate new user signup with SSO metadata
+    // Insert into auth.users first
+    let actualUserId: string | undefined
+    let hasRealAuthUser = false // Track if we have a real auth.users record
 
-    if (!actualUserId) {
-      console.log('Cannot create or find auth user - skipping test')
+    // Try to create user, if it already exists (retry scenario), use that ID
+    try {
+      const { error: authUserError, data: authUserData } = await getSupabaseClient().auth.admin.createUser({
+        email: testUserEmail,
+        email_confirm: true,
+        user_metadata: {
+          sso_provider_id: ssoProviderId,
+        },
+      })
+
+      // If we got a user back, use it
+      if (authUserData?.user) {
+        actualUserId = authUserData.user.id
+        hasRealAuthUser = true
+        console.log('Created auth user via admin API:', actualUserId)
+      }
+      else {
+        // No user returned - log the actual error for debugging
+        console.log('Auth admin API returned no user. Error:', JSON.stringify(authUserError))
+
+        // Try to find existing user before giving up
+        const { data: existingUser } = await getSupabaseClient()
+          .from('users')
+          .select('id')
+          .eq('email', testUserEmail)
+          .maybeSingle()
+
+        if (existingUser) {
+          actualUserId = existingUser.id
+          hasRealAuthUser = true // User exists in public.users means they exist in auth.users
+          console.log('Found existing user in public.users:', actualUserId)
+        }
+        else {
+          // Also check auth.users
+          const { data: authUsers } = await getSupabaseClient().auth.admin.listUsers()
+          const existingAuthUser = authUsers?.users?.find(u => u.email === testUserEmail)
+          if (existingAuthUser) {
+            actualUserId = existingAuthUser.id
+            hasRealAuthUser = true
+            console.log('Found existing user in auth.users:', actualUserId)
+          }
+          else {
+            // Last resort: skip this test - we can't test SSO enrollment without a real auth user
+            console.log('Auth admin API failed and no existing user found - skipping test')
+            return // Skip test gracefully
+          }
+        }
+      }
+    }
+    catch (err: any) {
+      console.log('Auth user creation threw exception:', err.message)
+      // Try to find or create user ID as fallback
+      const { data: existingUser } = await getSupabaseClient()
+        .from('users')
+        .select('id')
+        .eq('email', testUserEmail)
+        .maybeSingle()
+
+      if (existingUser) {
+        actualUserId = existingUser.id
+        hasRealAuthUser = true
+        console.log('Found existing user after exception:', actualUserId)
+      }
+      else {
+        // Check auth.users as well
+        const { data: authUsers } = await getSupabaseClient().auth.admin.listUsers()
+        const existingAuthUser = authUsers?.users?.find(u => u.email === testUserEmail)
+        if (existingAuthUser) {
+          actualUserId = existingAuthUser.id
+          hasRealAuthUser = true
+          console.log('Found existing auth user after exception:', actualUserId)
+        }
+        else {
+          // Skip test - can't proceed without a real auth user
+          console.log('Cannot create or find auth user - skipping test')
+          return
+        }
+      }
+    }
+
+    if (!actualUserId || !hasRealAuthUser) {
+      console.log('No valid auth user available - skipping test')
       return
     }
 
@@ -352,8 +337,8 @@ describe('auto-join integration', () => {
 
       // Ignore duplicate key errors on retry
       const isPublicUserDuplicate = publicUserError && (
-        publicUserError.message?.includes('duplicate')
-        || publicUserError.code === '23505'
+        publicUserError.message?.includes('duplicate') ||
+        publicUserError.code === '23505'
       )
 
       if (publicUserError && !isPublicUserDuplicate) {
@@ -372,9 +357,9 @@ describe('auto-join integration', () => {
 
     // Ignore "duplicate key" type errors on retry, also check for code 23505 (unique violation)
     const isDuplicateError = enrollError && (
-      enrollError.message?.includes('duplicate')
-      || enrollError.code === '23505'
-      || enrollError.details?.includes('duplicate')
+      enrollError.message?.includes('duplicate') ||
+      enrollError.code === '23505' ||
+      enrollError.details?.includes('duplicate')
     )
 
     if (enrollError && !isDuplicateError) {
@@ -416,7 +401,7 @@ describe('auto-join integration', () => {
   it('should auto-enroll existing users on first SSO login', async () => {
     const testIp = '203.0.113.42'
 
-    await fetch(getEndpointUrl('/private/sso/status'), {
+    await fetch(`${BASE_URL}/private/sso/status`, {
       method: 'POST',
       headers: {
         ...headersInternal,
@@ -624,7 +609,7 @@ describe.skip('domain verification', () => {
       user_right: 'super_admin',
     })
 
-    await fetch(getEndpointUrl('/private/sso/configure'), {
+    await fetch(`${BASE_URL}/private/sso/configure`, {
       method: 'POST',
       headers: headersInternal,
       body: JSON.stringify({
@@ -676,7 +661,7 @@ describe.skip('domain verification', () => {
       user_right: 'super_admin',
     })
 
-    await fetch(getEndpointUrl('/private/sso/configure'), {
+    await fetch(`${BASE_URL}/private/sso/configure`, {
       method: 'POST',
       headers: headersInternal,
       body: JSON.stringify({
@@ -736,7 +721,7 @@ describe.skip('domain verification', () => {
       user_right: 'super_admin',
     })
 
-    await fetch(getEndpointUrl('/private/sso/configure'), {
+    await fetch(`${BASE_URL}/private/sso/configure`, {
       method: 'POST',
       headers: headersInternal,
       body: JSON.stringify({
@@ -803,7 +788,7 @@ describe.skip('domain verification', () => {
       user_right: 'super_admin',
     })
 
-    await fetch(getEndpointUrl('/private/sso/configure'), {
+    await fetch(`${BASE_URL}/private/sso/configure`, {
       method: 'POST',
       headers: headersInternal,
       body: JSON.stringify({
@@ -814,7 +799,7 @@ describe.skip('domain verification', () => {
       }),
     })
 
-    const response = await fetch(getEndpointUrl('/private/sso/status'), {
+    const response = await fetch(`${BASE_URL}/private/sso/status`, {
       method: 'POST',
       headers: headersInternal,
       body: JSON.stringify({
