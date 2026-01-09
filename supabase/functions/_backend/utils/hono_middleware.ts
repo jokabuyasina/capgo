@@ -1,133 +1,22 @@
 import type { Context } from 'hono'
 import type { Database } from './supabase.types.ts'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
-import { getClaimsFromJWT, honoFactory, quickError, simpleRateLimit } from './hono.ts'
+import { honoFactory, quickError } from './hono.ts'
 import { cloudlog } from './logging.ts'
 import { closeClient, getDrizzleClient, getPgClient, logPgError } from './pg.ts'
 import * as schema from './postgres_schema.ts'
 import { clearFailedAuth, isAPIKeyRateLimited, isIPRateLimited, recordAPIKeyUsage, recordFailedAuth } from './rate_limit.ts'
-import { checkKey, checkKeyById, supabaseAdmin } from './supabase.ts'
-import { backgroundTask } from './utils.ts'
+import { checkKey, checkKeyById, supabaseAdmin, supabaseClient } from './supabase.ts'
 
-// =============================================================================
-// RBAC Context Middleware
-// =============================================================================
+// Redact sensitive keys for logging (show first 8 chars only)
+function redactKey(key: string | undefined | null): string {
+  if (!key)
+    return '[none]'
 
-interface RbacContextOptions {
-  orgIdResolver?: (c: Context) => string | null | Promise<string | null>
-}
+  if (key.length <= 8)
+    return '[redacted]'
 
-async function getAppIdFromRequest(c: Context) {
-  const queryAppId = c.req.query('app_id')
-  if (queryAppId) {
-    return queryAppId
-  }
-  const body = await c.req.raw.clone().json().catch(() => ({ app_id: null })) as { app_id: string | null }
-  return body.app_id ?? null
-}
-
-async function fetchOrgIdFromAppId(c: Context, appId: string) {
-  let pgClient
-  try {
-    pgClient = getPgClient(c, true)
-    const drizzleClient = getDrizzleClient(pgClient)
-    const appResult = await drizzleClient
-      .select({ ownerOrg: schema.apps.owner_org })
-      .from(schema.apps)
-      .where(eq(schema.apps.app_id, appId))
-      .limit(1)
-    if (appResult.length > 0 && appResult[0].ownerOrg) {
-      return appResult[0].ownerOrg
-    }
-  }
-  catch (e) {
-    logPgError(c, 'middlewareRbacContext:resolveAppOrg', e)
-  }
-  finally {
-    if (pgClient) {
-      await closeClient(c, pgClient)
-    }
-  }
-  return null
-}
-
-async function resolveOrgIdForRbac(c: Context, options?: RbacContextOptions) {
-  if (options?.orgIdResolver) {
-    const orgId = await Promise.resolve(options.orgIdResolver(c))
-    if (orgId) {
-      return orgId
-    }
-  }
-
-  const appId = await getAppIdFromRequest(c)
-  if (!appId) {
-    return null
-  }
-
-  return fetchOrgIdFromAppId(c, appId)
-}
-
-async function setRbacContextForOrg(c: Context, orgId: string) {
-  c.set('resolvedOrgId', orgId)
-  let pgClient
-  try {
-    pgClient = getPgClient(c, true)
-    const drizzleClient = getDrizzleClient(pgClient)
-    const result = await drizzleClient.execute(
-      sql`SELECT public.rbac_is_enabled_for_org(${orgId}::uuid) as enabled`,
-    )
-    const enabled = (result.rows[0] as any)?.enabled === true
-    c.set('rbacEnabled', enabled)
-
-    cloudlog({
-      requestId: c.get('requestId'),
-      message: 'middlewareRbacContext: resolved',
-      orgId,
-      rbacEnabled: enabled,
-    })
-  }
-  catch (e) {
-    logPgError(c, 'middlewareRbacContext:checkRbacEnabled', e)
-    c.set('rbacEnabled', false)
-  }
-  finally {
-    if (pgClient) {
-      await closeClient(c, pgClient)
-    }
-  }
-}
-
-function setRbacContextLegacy(c: Context) {
-  c.set('rbacEnabled', false)
-  cloudlog({
-    requestId: c.get('requestId'),
-    message: 'middlewareRbacContext: no orgId resolved, defaulting to legacy',
-  })
-}
-
-/**
- * Middleware that resolves and caches the RBAC feature flag for the current org.
- * Should be used after authentication middleware and when orgId is known.
- *
- * Usage:
- *   app.use('/app/*', middlewareV2(['all']), middlewareRbacContext())
- *
- * After this middleware runs:
- *   - c.get('rbacEnabled') - boolean indicating if RBAC is enabled for the org
- *   - c.get('resolvedOrgId') - the resolved org ID (if provided)
- */
-export function middlewareRbacContext(options?: RbacContextOptions) {
-  return honoFactory.createMiddleware(async (c, next) => {
-    const orgId = await resolveOrgIdForRbac(c, options)
-    if (orgId) {
-      await setRbacContextForOrg(c, orgId)
-    }
-    else {
-      setRbacContextLegacy(c)
-    }
-
-    await next()
-  })
+  return `${key.substring(0, 8)}...`
 }
 
 // TODO: make universal middleware who
@@ -466,12 +355,18 @@ async function foundAPIKey(c: Context, capgkeyString: string, rights: Database['
 }
 
 async function foundJWT(c: Context, jwt: string) {
-  cloudlog({ requestId: c.get('requestId'), message: 'JWT provided', jwtPrefix: maskSecret(jwt) })
-
-  // Decode JWT claims without network call (much faster than getUser())
-  const claims = getClaimsFromJWT(jwt)
-  if (!claims || !claims.sub) {
-    cloudlog({ requestId: c.get('requestId'), message: 'Invalid JWT claims' })
+  cloudlog({ requestId: c.get('requestId'), message: 'JWT provided', jwt: redactKey(jwt) })
+  const supabaseJWT = supabaseClient(c, jwt)
+  const { data: user, error: userError } = await supabaseJWT.auth.getUser()
+  if (userError) {
+    cloudlog({ requestId: c.get('requestId'), message: 'Invalid JWT', userError })
+    // Record failed auth attempt - await to ensure accurate counting
+    await recordFailedAuth(c)
+    return quickError(401, 'invalid_jwt', 'Invalid JWT')
+  }
+  const userId = user.user?.id
+  if (!userId) {
+    cloudlog({ requestId: c.get('requestId'), message: 'Invalid JWT user', userError })
     // Record failed auth attempt - await to ensure accurate counting
     await recordFailedAuth(c)
     return quickError(401, 'invalid_jwt', 'Invalid JWT')
@@ -481,7 +376,7 @@ async function foundJWT(c: Context, jwt: string) {
   backgroundTask(c, clearFailedAuth(c))
 
   c.set('auth', {
-    userId: claims.sub,
+    userId,
     authType: 'jwt',
     jwt,
     apikey: null,
