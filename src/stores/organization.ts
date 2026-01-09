@@ -351,7 +351,7 @@ export const useOrganizationStore = defineStore('organization', () => {
 
     if (error) {
       console.error('Cannot get orgs!', error)
-      throw error
+      throw new Error(`Failed to fetch organizations: ${error.message}`)
     }
 
     const organization = data
@@ -359,7 +359,7 @@ export const useOrganizationStore = defineStore('organization', () => {
       .sort((a: RawOrganization, b: RawOrganization) => b.app_count - a.app_count)[0]
     if (!organization) {
       console.log('user has no main organization')
-      throw error
+      throw new Error('user has no main organization')
     }
 
     const mappedData = data.map((item: RawOrganization, id: number) => {
