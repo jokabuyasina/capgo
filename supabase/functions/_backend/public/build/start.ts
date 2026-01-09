@@ -67,8 +67,10 @@ export async function startBuild(
         app_id: appId,
         user_id: apikey.user_id,
       })
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
-      alreadyMarkedAsFailed = true
+      if (apikeyKey) {
+        await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+        alreadyMarkedAsFailed = true
+      }
       throw simpleError('unauthorized', errorMsg)
     }
 
@@ -92,8 +94,10 @@ export async function startBuild(
       })
 
       // Update build_requests to mark as failed
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
-      alreadyMarkedAsFailed = true
+      if (apikeyKey) {
+        await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+        alreadyMarkedAsFailed = true
+      }
       throw simpleError('builder_error', errorMsg)
     }
 
