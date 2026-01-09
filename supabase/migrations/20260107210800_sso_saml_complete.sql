@@ -212,7 +212,7 @@ DECLARE
 BEGIN
   v_domain := lower(split_part(p_email, '@', 2));
   
-  IF NULLIF(trim(v_domain), '') IS NULL THEN
+  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
     RETURN false;
   END IF;
   
@@ -391,7 +391,7 @@ DECLARE
 BEGIN
   v_domain := lower(split_part(p_email, '@', 2));
   
-  IF NULLIF(trim(v_domain), '') IS NULL THEN
+  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
     RETURN NULL;
   END IF;
   
@@ -579,10 +579,9 @@ BEGIN
     SELECT DISTINCT o.id, o.name
     FROM public.orgs o
     INNER JOIN public.saml_domain_mappings sdm ON sdm.org_id = o.id
-    INNER JOIN public.org_saml_connections osc ON osc.id = sdm.sso_connection_id
+    INNER JOIN public.org_saml_connections osc ON osc.org_id = o.id
     WHERE sdm.domain = v_domain
       AND sdm.verified = true
-      AND osc.enabled = true
       AND osc.auto_join_enabled = true
       AND NOT EXISTS (
         SELECT 1 FROM public.org_users ou 
@@ -1037,8 +1036,9 @@ CREATE POLICY "Org admins can view org SSO audit logs"
     )
   );
 
--- Note: No INSERT policy needed for sso_audit_logs since SECURITY DEFINER
--- functions bypass RLS. Only service_role should insert directly.
+-- Note: No INSERT policy needed for sso_audit_logs.
+-- All writes are performed by SECURITY DEFINER functions which bypass RLS.
+-- This prevents arbitrary authenticated users from inserting audit entries.
 
 -- ============================================================================
 -- GRANTS: Ensure proper permissions

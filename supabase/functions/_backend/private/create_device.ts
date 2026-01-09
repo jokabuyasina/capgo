@@ -67,8 +67,13 @@ app.post('/', middlewareV2(['all', 'write']), async (c) => {
     return quickError(404, 'app_not_found', 'App not found', { app_id: safeBody.app_id })
   }
 
+  // Validate that the app belongs to the provided org
   if (app.owner_org !== safeBody.org_id) {
-    return quickError(403, 'org_mismatch', 'App does not belong to the specified organization', { app_id: safeBody.app_id, org_id: safeBody.org_id })
+    return quickError(403, 'org_mismatch', 'App does not belong to provided organization', {
+      app_id: safeBody.app_id,
+      provided_org_id: safeBody.org_id,
+      actual_owner_org: app.owner_org,
+    })
   }
 
   await createStatsDevices(c, {
