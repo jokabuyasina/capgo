@@ -133,6 +133,13 @@ async function validateInvite(c: Context, rawBody: any) {
     return { message: 'Failed to invite user', error: orgError?.message ?? 'Organization not found', status: 500 }
   }
 
+  if (!org.name.match(nameRegex)) {
+    return { message: 'Failed to invite user', error: 'Organization name contains invalid characters', status: 400 }
+  }
+
+  const useNewRbac = org.use_new_rbac === true
+  const { legacyInviteType, rbacRoleName } = resolveInviteRoles(body.invite_type, useNewRbac)
+
   // Get current user ID from JWT
   const { data: authData, error: authError } = await supabase.auth.getUser()
 
