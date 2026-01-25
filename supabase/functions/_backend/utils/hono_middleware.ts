@@ -1,12 +1,13 @@
 import type { Context } from 'hono'
 import type { Database } from './supabase.types.ts'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
-import { honoFactory, quickError } from './hono.ts'
+import { getClaimsFromJWT, honoFactory, quickError, simpleRateLimit } from './hono.ts'
 import { cloudlog } from './logging.ts'
 import { closeClient, getDrizzleClient, getPgClient, logPgError } from './pg.ts'
 import * as schema from './postgres_schema.ts'
 import { clearFailedAuth, isAPIKeyRateLimited, isIPRateLimited, recordAPIKeyUsage, recordFailedAuth } from './rate_limit.ts'
-import { checkKey, checkKeyById, supabaseAdmin, supabaseClient } from './supabase.ts'
+import { checkKey, checkKeyById, supabaseAdmin } from './supabase.ts'
+import { backgroundTask } from './utils.ts'
 
 // Redact sensitive keys for logging (show first 8 chars only)
 function redactKey(key: string | undefined | null): string {
@@ -355,18 +356,12 @@ async function foundAPIKey(c: Context, capgkeyString: string, rights: Database['
 }
 
 async function foundJWT(c: Context, jwt: string) {
-  cloudlog({ requestId: c.get('requestId'), message: 'JWT provided', jwt: redactKey(jwt) })
-  const supabaseJWT = supabaseClient(c, jwt)
-  const { data: user, error: userError } = await supabaseJWT.auth.getUser()
-  if (userError) {
-    cloudlog({ requestId: c.get('requestId'), message: 'Invalid JWT', userError })
-    // Record failed auth attempt - await to ensure accurate counting
-    await recordFailedAuth(c)
-    return quickError(401, 'invalid_jwt', 'Invalid JWT')
-  }
-  const userId = user.user?.id
-  if (!userId) {
-    cloudlog({ requestId: c.get('requestId'), message: 'Invalid JWT user', userError })
+  cloudlog({ requestId: c.get('requestId'), message: 'JWT provided', jwtPrefix: maskSecret(jwt) })
+
+  // Decode JWT claims without network call (much faster than getUser())
+  const claims = getClaimsFromJWT(jwt)
+  if (!claims || !claims.sub) {
+    cloudlog({ requestId: c.get('requestId'), message: 'Invalid JWT claims' })
     // Record failed auth attempt - await to ensure accurate counting
     await recordFailedAuth(c)
     return quickError(401, 'invalid_jwt', 'Invalid JWT')
@@ -376,7 +371,7 @@ async function foundJWT(c: Context, jwt: string) {
   backgroundTask(c, clearFailedAuth(c))
 
   c.set('auth', {
-    userId,
+    userId: claims.sub,
     authType: 'jwt',
     jwt,
     apikey: null,

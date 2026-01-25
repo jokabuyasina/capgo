@@ -141,23 +141,16 @@ async function validateInvite(c: Context, rawBody: any) {
   const { legacyInviteType, rbacRoleName } = resolveInviteRoles(body.invite_type, useNewRbac)
 
   // Get current user ID from JWT
-  const { data: authData, error: authError } = await supabase.auth.getUser()
-
-  if (authError || !authData?.user) {
-    return { message: 'Failed to get user', error: authError?.message ?? 'User not found', status: 500 }
-  }
-
-  // Check if user has admin permission for the org
-  const hasAdmin = await hasOrgRight(c, body.org_id, authData.user.id, 'admin')
-  if (!hasAdmin) {
-    return { message: 'Insufficient permissions', error: 'You must be an admin to invite users', status: 403 }
+  const authContext = c.get('auth')
+  if (!authContext?.userId) {
+    return { message: 'Failed to get current user', error: 'Not authorized', status: 500 }
   }
 
   // Get user details
   const { data: inviteCreatorUser, error: inviteCreatorUserError } = await supabase
     .from('users')
     .select('*')
-    .eq('id', authData.user.id)
+    .eq('id', authContext.userId)
     .single()
 
   if (inviteCreatorUserError) {
