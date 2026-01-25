@@ -148,6 +148,38 @@ async function fetchDailyVersionStats(targetAppIds: string[], startDate: string,
   return allRows
 }
 
+const PAGE_SIZE = 1000
+
+async function fetchDailyVersionStats(targetAppIds: string[], startDate: string, endDate: string) {
+  const supabase = useSupabase()
+  const allRows: any[] = []
+  let offset = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('daily_version')
+      .select('date, app_id, install, fail, get')
+      .in('app_id', targetAppIds)
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1)
+
+    if (error)
+      throw error
+
+    if (data && data.length > 0)
+      allRows.push(...data)
+
+    if (!data || data.length < PAGE_SIZE)
+      break
+
+    offset += PAGE_SIZE
+  }
+
+  return allRows
+}
+
 async function calculateStats(forceRefetch = false) {
   const startTime = Date.now()
   isLoading.value = true
