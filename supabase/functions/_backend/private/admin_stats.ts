@@ -5,12 +5,11 @@ import { z } from 'zod/mini'
 import { getAdminAppsTrend, getAdminBandwidthTrend, getAdminBundlesTrend, getAdminDistributionMetrics, getAdminFailureMetrics, getAdminMauTrend, getAdminOrgMetrics, getAdminPlatformOverview, getAdminStorageTrend, getAdminSuccessRate, getAdminSuccessRateTrend, getAdminUploadMetrics } from '../utils/cloudflare.ts'
 import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { getAdminCancelledOrganizations, getAdminDeploymentsTrend, getAdminGlobalStatsTrend, getAdminOnboardingFunnel, getAdminPluginBreakdown, getAdminTrialOrganizations } from '../utils/pg.ts'
-import { getCancellationDetails } from '../utils/stripe.ts'
+import { getAdminDeploymentsTrend, getAdminGlobalStatsTrend, getAdminOnboardingFunnel, getAdminPluginBreakdown, getAdminTrialOrganizations } from '../utils/pg.ts'
 import { supabaseClient as useSupabaseClient } from '../utils/supabase.ts'
 
 const bodySchema = z.object({
-  metric_category: z.enum(['uploads', 'distribution', 'failures', 'success_rate', 'platform_overview', 'org_metrics', 'mau_trend', 'success_rate_trend', 'apps_trend', 'bundles_trend', 'deployments_trend', 'storage_trend', 'bandwidth_trend', 'global_stats_trend', 'plugin_breakdown', 'trial_organizations', 'onboarding_funnel', 'cancelled_users']),
+  metric_category: z.enum(['uploads', 'distribution', 'failures', 'success_rate', 'platform_overview', 'org_metrics', 'mau_trend', 'success_rate_trend', 'apps_trend', 'bundles_trend', 'deployments_trend', 'storage_trend', 'bandwidth_trend', 'global_stats_trend', 'plugin_breakdown', 'trial_organizations', 'onboarding_funnel']),
   start_date: z.string().check(z.minLength(1)),
   end_date: z.string().check(z.minLength(1)),
 })
@@ -172,37 +171,6 @@ app.post('/', middlewareAuth, async (c) => {
       case 'trial_organizations':
         result = await getAdminTrialOrganizations(c, limit || 20, offset || 0)
         break
-
-      case 'cancelled_users': {
-        const canceledOrgs = await getAdminCancelledOrganizations(c, start_date, end_date, limit || 20, offset || 0)
-        const detailsCache = new Map<string, CancellationDetails | null>()
-        const organizations = await Promise.all(
-          canceledOrgs.organizations.map(async (org) => {
-            let details: CancellationDetails | null = null
-            if (org.subscription_id) {
-              if (detailsCache.has(org.subscription_id)) {
-                details = detailsCache.get(org.subscription_id) ?? null
-              }
-              else {
-                details = await getCancellationDetails(c, org.subscription_id)
-                detailsCache.set(org.subscription_id, details)
-              }
-            }
-            return {
-              org_id: org.org_id,
-              org_name: org.org_name,
-              management_email: org.management_email,
-              canceled_at: org.canceled_at,
-              cancellation_reason: formatCancellationReason(details),
-            }
-          }),
-        )
-        result = {
-          organizations,
-          total: canceledOrgs.total,
-        }
-        break
-      }
 
       case 'onboarding_funnel':
         result = await getAdminOnboardingFunnel(c, start_date, end_date)

@@ -416,57 +416,35 @@ const latestGlobalStats = computed(() => {
   return globalStatsTrendData.value[globalStatsTrendData.value.length - 1]
 })
 
-const onboardingFunnelRates = computed(() => {
-  if (!onboardingFunnelData.value) {
-    return {
-      app: 0,
-      channel: 0,
-      bundle: 0,
-    }
-  }
-
-  const totalOrgs = Number(onboardingFunnelData.value.total_orgs) || 0
-  const orgsWithApp = Number(onboardingFunnelData.value.orgs_with_app) || 0
-  const orgsWithChannel = Number(onboardingFunnelData.value.orgs_with_channel) || 0
-  const orgsWithBundle = Number(onboardingFunnelData.value.orgs_with_bundle) || 0
-
-  return {
-    app: totalOrgs > 0 ? (orgsWithApp / totalOrgs) * 100 : 0,
-    channel: orgsWithApp > 0 ? (orgsWithChannel / orgsWithApp) * 100 : 0,
-    bundle: orgsWithChannel > 0 ? (orgsWithBundle / orgsWithChannel) * 100 : 0,
-  }
-})
-
 // Onboarding funnel stages for display
 const onboardingFunnelStages = computed(() => {
   if (!onboardingFunnelData.value)
     return []
 
   const data = onboardingFunnelData.value
-  const rates = onboardingFunnelRates.value
   return [
     {
       label: 'Organizations Created',
-      value: Number(data.total_orgs) || 0,
+      value: data.total_orgs,
       percentage: 100,
       color: '#3b82f6', // blue
     },
     {
       label: 'Created an App',
-      value: Number(data.orgs_with_app) || 0,
-      percentage: rates.app,
+      value: data.orgs_with_app,
+      percentage: data.app_conversion_rate,
       color: '#8b5cf6', // purple
     },
     {
       label: 'Created a Channel',
-      value: Number(data.orgs_with_channel) || 0,
-      percentage: rates.channel,
+      value: data.orgs_with_channel,
+      percentage: data.channel_conversion_rate,
       color: '#f59e0b', // amber
     },
     {
       label: 'Uploaded a Bundle',
-      value: Number(data.orgs_with_bundle) || 0,
-      percentage: rates.bundle,
+      value: data.orgs_with_bundle,
+      percentage: data.bundle_conversion_rate,
       color: '#10b981', // green
     },
   ]
@@ -517,15 +495,12 @@ const onboardingFunnelTrendSeries = computed(() => {
 watch(() => adminStore.activeDateRange, () => {
   loadGlobalStatsTrend()
   loadOnboardingFunnel()
-  loadCancelledOrganizations()
 }, { deep: true })
 
 // Watch for refresh button clicks
 watch(() => adminStore.refreshTrigger, () => {
   loadGlobalStatsTrend()
   loadOnboardingFunnel()
-  loadTrialOrganizations()
-  loadCancelledOrganizations()
 })
 
 onMounted(async () => {
@@ -536,7 +511,7 @@ onMounted(async () => {
   }
 
   isLoading.value = true
-  await Promise.all([loadGlobalStatsTrend(), loadOnboardingFunnel(), loadTrialOrganizations(), loadCancelledOrganizations()])
+  await Promise.all([loadGlobalStatsTrend(), loadOnboardingFunnel(), loadTrialOrganizations()])
   isLoading.value = false
 
   displayStore.NavTitle = t('users-and-revenue')
@@ -568,16 +543,34 @@ displayStore.defaultBack = '/dashboard'
             <div v-if="isLoadingOnboardingFunnel" class="flex items-center justify-center h-48">
               <span class="loading loading-spinner loading-lg" />
             </div>
-            <div v-else-if="onboardingFunnelStages.length > 0" class="space-y-6">
-              <div class="h-64 sm:h-72">
-                <AdminFunnelChart :stages="onboardingFunnelStages" :is-loading="isLoadingOnboardingFunnel" />
+            <div v-else-if="onboardingFunnelStages.length > 0" class="space-y-4">
+              <!-- Funnel bars -->
+              <div v-for="(stage, index) in onboardingFunnelStages" :key="stage.label" class="relative">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ stage.label }}</span>
+                  <span class="text-sm font-bold" :style="{ color: stage.color }">
+                    {{ stage.value.toLocaleString() }}
+                    <span v-if="index > 0" class="ml-2 text-xs text-gray-500">
+                      ({{ stage.percentage.toFixed(1) }}% {{ index === 1 ? 'of orgs' : 'of previous' }})
+                    </span>
+                  </span>
+                </div>
+                <div class="w-full h-8 overflow-hidden bg-gray-200 rounded-lg dark:bg-gray-700">
+                  <div
+                    class="h-full transition-all duration-500 rounded-lg"
+                    :style="{
+                      width: `${index === 0 ? 100 : Math.max(5, (stage.value / onboardingFunnelStages[0].value) * 100)}%`,
+                      backgroundColor: stage.color,
+                    }"
+                  />
+                </div>
               </div>
 
               <!-- Conversion summary -->
               <div class="grid grid-cols-3 gap-4 pt-4 mt-4 border-t border-gray-200 dark:border-gray-700">
                 <div class="text-center">
                   <p class="text-2xl font-bold text-purple-500">
-                    {{ onboardingFunnelRates.app.toFixed(1) }}%
+                    {{ onboardingFunnelData?.app_conversion_rate?.toFixed(1) || 0 }}%
                   </p>
                   <p class="text-xs text-gray-500 dark:text-gray-400">
                     Org → App
@@ -585,7 +578,7 @@ displayStore.defaultBack = '/dashboard'
                 </div>
                 <div class="text-center">
                   <p class="text-2xl font-bold text-amber-500">
-                    {{ onboardingFunnelRates.channel.toFixed(1) }}%
+                    {{ onboardingFunnelData?.channel_conversion_rate?.toFixed(1) || 0 }}%
                   </p>
                   <p class="text-xs text-gray-500 dark:text-gray-400">
                     App → Channel
@@ -593,7 +586,7 @@ displayStore.defaultBack = '/dashboard'
                 </div>
                 <div class="text-center">
                   <p class="text-2xl font-bold text-emerald-500">
-                    {{ onboardingFunnelRates.bundle.toFixed(1) }}%
+                    {{ onboardingFunnelData?.bundle_conversion_rate?.toFixed(1) || 0 }}%
                   </p>
                   <p class="text-xs text-gray-500 dark:text-gray-400">
                     Channel → Bundle
