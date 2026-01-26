@@ -22,14 +22,14 @@ INSERT INTO
 VALUES (
         tests.get_supabase_uid ('test_2fa_user_org'),
         '2fa_org@test.com',
-        NOW(),
-        NOW()
+        now(),
+        now()
     ),
     (
         tests.get_supabase_uid ('test_no_2fa_user_org'),
         'no2fa_org@test.com',
-        NOW(),
-        NOW()
+        now(),
+        now()
     ) ON CONFLICT (id) DO NOTHING;
 
 -- Create test orgs
