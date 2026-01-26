@@ -63,8 +63,9 @@ beforeAll(async () => {
   await getSupabaseClient().from('stripe_info').delete().eq('customer_id', TEST_CUSTOMER_ID)
 
   // Mock Deno.Command if running in Deno environment
-  if ((globalThis as any).Deno) {
-    (globalThis as any).Deno.Command = vi.fn().mockImplementation((_cmd: string, _options: any) => {
+  if (globalThis.Deno) {
+    // @ts-expect-error - Mocking Deno.Command
+    globalThis.Deno.Command = vi.fn().mockImplementation((_cmd: string, _options: any) => {
       return {
         output: vi.fn().mockResolvedValue({
           success: true,
@@ -142,8 +143,9 @@ afterAll(async () => {
   }
 
   // Restore original Deno.Command
-  if (originalDenoCommand && (globalThis as any).Deno) {
-    (globalThis as any).Deno.Command = originalDenoCommand
+  if (originalDenoCommand && globalThis.Deno) {
+    // @ts-expect-error - Restoring Deno.Command
+    globalThis.Deno.Command = originalDenoCommand
   }
 
   // Clean up SSO data
