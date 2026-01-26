@@ -8,15 +8,26 @@ const pool = new Pool({
   connectionString: POSTGRES_URL,
   max: 1,
   idleTimeoutMillis: 2000,
-  connectionTimeoutMillis: 5000,
+  connectionTimeoutMillis: 5000, // Add timeout to prevent hanging
 })
 const queueName = 'test_queue_consumer'
+
+// Close pool at module level to ensure cleanup even if beforeAll fails
+afterAll(async () => {
+  await pool.end()
+})
 
 beforeAll(async () => {
   // Clean up any existing messages in the test queue
   // Count before cleanup for debugging
-  await pool.query(`DELETE FROM pgmq.q_${queueName}`)
-  await pool.query(`DELETE FROM pgmq.a_${queueName}`)
+  try {
+    await pool.query(`DELETE FROM pgmq.q_${queueName}`)
+    await pool.query(`DELETE FROM pgmq.a_${queueName}`)
+  }
+  catch (error) {
+    // Queue tables may not exist yet, that's okay
+    console.warn('Queue cleanup warning (may be expected):', error)
+  }
 })
 
 // Module-level afterAll to ensure pool is always closed, even if tests fail
