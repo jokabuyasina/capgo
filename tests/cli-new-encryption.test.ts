@@ -135,10 +135,10 @@ describe.concurrent('tests CLI encryption encrypt/upload/download/decrypt', () =
       expect(indexJsEntry).toBeDefined()
 
       const indexJsContent = indexJsEntry!.getData().toString('utf8')
-      // Verify the decrypted content contains expected patterns (content is now unique per app)
-      expect(indexJsContent).toContain('import { CapacitorUpdater }')
-      expect(indexJsContent).toContain('console.log')
-      expect(indexJsContent).toContain('CapacitorUpdater.notifyAppReady()')
+      // Check for expected patterns in the content (allows for unique IDs added for parallel test isolation)
+      expect(indexJsContent).toContain('import { CapacitorUpdater } from \'@capgo/capacitor-updater\';')
+      expect(indexJsContent).toContain('console.log("Hello world!!!')
+      expect(indexJsContent).toContain('CapacitorUpdater.notifyAppReady();')
 
       // now, let's verify the checksum by computing it from decrypted content
       const hash = createHash('sha256')
