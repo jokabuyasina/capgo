@@ -14,6 +14,15 @@
 -- ============================================================================
 
 -- ============================================================================
+-- ALTER: Add auto_join_enabled to orgs table
+-- Controls whether organizations allow automatic enrollment via SSO/SAML
+-- ============================================================================
+ALTER TABLE public.orgs
+ADD COLUMN IF NOT EXISTS auto_join_enabled boolean NOT NULL DEFAULT false;
+
+COMMENT ON COLUMN public.orgs.auto_join_enabled IS 'Controls whether users with matching email domains are automatically enrolled in this organization';
+
+-- ============================================================================
 -- TABLE: org_saml_connections
 -- Stores SAML SSO configuration per organization (ONE per org)
 -- ============================================================================
@@ -569,6 +578,7 @@ BEGIN
     INNER JOIN "public"."saml_domain_mappings" sdm ON sdm."org_id" = o."id"
     WHERE sdm."domain" = v_domain
       AND sdm."verified" = true
+      AND o."auto_join_enabled" = true
       AND NOT EXISTS (
         SELECT 1 FROM "public"."org_users" ou 
         WHERE ou."user_id" = p_user_id AND ou."org_id" = o."id"
@@ -948,10 +958,47 @@ DROP POLICY IF EXISTS "System can insert audit logs" ON public.sso_audit_logs;
 -- RLS POLICIES: org_saml_connections
 -- ============================================================================
 
--- Super admins can manage SSO connections
-CREATE POLICY "Super admins can manage SSO connections"
+-- Merged SELECT policy: Super admins or org members can read SSO connections
+CREATE POLICY "Allow SELECT on org_saml_connections"
   ON public.org_saml_connections
-  FOR ALL
+  FOR SELECT
+  TO authenticated, anon
+  USING (
+    public.check_min_rights(
+      'super_admin'::public.user_min_right,
+      public.get_identity_org_allowed('{all,write}'::public.key_mode[], org_id),
+      org_id,
+      NULL::character varying,
+      NULL::bigint
+    )
+    OR public.check_min_rights(
+      'read'::public.user_min_right,
+      public.get_identity_org_allowed('{read,write,all}'::public.key_mode[], org_id),
+      org_id,
+      NULL::character varying,
+      NULL::bigint
+    )
+  );
+
+-- Super admins can INSERT SSO connections
+CREATE POLICY "Super admins can insert SSO connections"
+  ON public.org_saml_connections
+  FOR INSERT
+  TO authenticated, anon
+  WITH CHECK (
+    public.check_min_rights(
+      'super_admin'::public.user_min_right,
+      public.get_identity_org_allowed('{all,write}'::public.key_mode[], org_id),
+      org_id,
+      NULL::character varying,
+      NULL::bigint
+    )
+  );
+
+-- Super admins can UPDATE SSO connections
+CREATE POLICY "Super admins can update SSO connections"
+  ON public.org_saml_connections
+  FOR UPDATE
   TO authenticated, anon
   USING (
     public.check_min_rights(
@@ -972,22 +1019,15 @@ CREATE POLICY "Super admins can manage SSO connections"
     )
   );
 
--- Merged SELECT policy: Super admins or org members can read SSO connections
-CREATE POLICY "Allow SELECT on org_saml_connections"
+-- Super admins can DELETE SSO connections
+CREATE POLICY "Super admins can delete SSO connections"
   ON public.org_saml_connections
-  FOR SELECT
+  FOR DELETE
   TO authenticated, anon
   USING (
     public.check_min_rights(
       'super_admin'::public.user_min_right,
       public.get_identity_org_allowed('{all,write}'::public.key_mode[], org_id),
-      org_id,
-      NULL::character varying,
-      NULL::bigint
-    )
-    OR public.check_min_rights(
-      'read'::public.user_min_right,
-      public.get_identity_org_allowed('{read,write,all}'::public.key_mode[], org_id),
       org_id,
       NULL::character varying,
       NULL::bigint
@@ -1073,10 +1113,6 @@ CREATE POLICY "Allow SELECT on sso_audit_logs"
              ))
     )
   );
-
--- Note: No INSERT policy needed for sso_audit_logs.
--- All writes are performed by SECURITY DEFINER functions which bypass RLS.
--- This prevents arbitrary authenticated users from inserting audit entries.
 
 -- ============================================================================
 -- GRANTS: Ensure proper permissions
