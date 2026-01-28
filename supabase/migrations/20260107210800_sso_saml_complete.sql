@@ -222,7 +222,7 @@ RETURNS boolean
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_domain text;
@@ -236,11 +236,11 @@ BEGIN
   
   SELECT EXISTS (
     SELECT 1
-    FROM public.saml_domain_mappings sdm
-    JOIN public.org_saml_connections osc ON osc.id = sdm.sso_connection_id
-    WHERE sdm.domain = v_domain
-      AND sdm.verified = true
-      AND osc.enabled = true
+    FROM "public"."saml_domain_mappings" sdm
+    JOIN "public"."org_saml_connections" osc ON osc."id" = sdm."sso_connection_id"
+    WHERE sdm."domain" = v_domain
+      AND sdm."verified" = true
+      AND osc."enabled" = true
   ) INTO v_has_sso;
   
   RETURN v_has_sso;
@@ -255,14 +255,14 @@ RETURNS boolean
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1
-    FROM public.org_saml_connections
-    WHERE org_id = p_org_id
-      AND enabled = true
+    FROM "public"."org_saml_connections"
+    WHERE "org_id" = p_org_id
+      AND "enabled" = true
   );
 END;
 $$;
@@ -275,48 +275,27 @@ RETURNS uuid
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_provider_id uuid;
   v_provider_str text;
 BEGIN
-  -- Authorization: only allow reading own data unless called by system
-  -- Triggers run as SECURITY DEFINER so they bypass this check
-  IF auth.uid() IS NOT NULL AND auth.uid() != p_user_id THEN
-    RETURN NULL;
+  -- Security: Only allow users to query their own data
+  IF p_user_id != "auth"."uid"() THEN
+    RAISE EXCEPTION 'Access denied: cannot query other users SSO provider ID';
   END IF;
 
-  -- Try raw_app_meta_data first (set by Supabase Auth during SSO login)
-  BEGIN
-    SELECT NULLIF(raw_app_meta_data->>'sso_provider_id', '')
-    INTO v_provider_str
-    FROM auth.users
-    WHERE id = p_user_id;
-    
-    IF v_provider_str IS NOT NULL THEN
-      v_provider_id := v_provider_str::uuid;
-    END IF;
-  EXCEPTION WHEN invalid_text_representation THEN
-    -- Invalid UUID format in app metadata, ignore
-    v_provider_id := NULL;
-  END;
+  SELECT ("raw_app_meta_data"->>'sso_provider_id')::uuid
+  INTO v_provider_id
+  FROM "auth"."users"
+  WHERE "id" = p_user_id;
   
-  -- Fallback to raw_user_meta_data if not found
   IF v_provider_id IS NULL THEN
-    BEGIN
-      SELECT NULLIF(raw_user_meta_data->>'sso_provider_id', '')
-      INTO v_provider_str
-      FROM auth.users
-      WHERE id = p_user_id;
-      
-      IF v_provider_str IS NOT NULL THEN
-        v_provider_id := v_provider_str::uuid;
-      END IF;
-    EXCEPTION WHEN invalid_text_representation THEN
-      -- Invalid UUID format in user metadata, ignore
-      v_provider_id := NULL;
-    END;
+    SELECT ("raw_user_meta_data"->>'sso_provider_id')::uuid
+    INTO v_provider_id
+    FROM "auth"."users"
+    WHERE "id" = p_user_id;
   END IF;
   
   RETURN v_provider_id;
@@ -335,14 +314,13 @@ CREATE OR REPLACE FUNCTION public.org_has_sso_configured(p_org_id uuid)
 RETURNS boolean
 LANGUAGE plpgsql
 STABLE
-SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 
-    FROM public.org_saml_connections 
-    WHERE org_id = p_org_id
+    FROM "public"."org_saml_connections" 
+    WHERE "org_id" = p_org_id
   );
 END;
 $$;
@@ -368,7 +346,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_domain text;
@@ -383,20 +361,20 @@ BEGIN
   -- Return all matching SSO providers ordered by priority
   RETURN QUERY
   SELECT 
-    osc.sso_provider_id as provider_id,
-    osc.entity_id,
-    osc.org_id,
-    o.name as org_name,
-    osc.provider_name,
-    osc.metadata_url,
-    osc.enabled
-  FROM public.saml_domain_mappings sdm
-  JOIN public.org_saml_connections osc ON osc.id = sdm.sso_connection_id
-  JOIN public.orgs o ON o.id = osc.org_id
-  WHERE sdm.domain = v_domain
-    AND sdm.verified = true
-    AND osc.enabled = true
-  ORDER BY sdm.priority DESC, osc.created_at DESC;
+    osc."sso_provider_id" as provider_id,
+    osc."entity_id",
+    osc."org_id",
+    o."name" as org_name,
+    osc."provider_name",
+    osc."metadata_url",
+    osc."enabled"
+  FROM "public"."saml_domain_mappings" sdm
+  JOIN "public"."org_saml_connections" osc ON osc."id" = sdm."sso_connection_id"
+  JOIN "public"."orgs" o ON o."id" = osc."org_id"
+  WHERE sdm."domain" = v_domain
+    AND sdm."verified" = true
+    AND osc."enabled" = true
+  ORDER BY sdm."priority" DESC, osc."created_at" DESC;
 END;
 $$;
 
@@ -408,7 +386,7 @@ RETURNS uuid
 LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_domain text;
@@ -420,14 +398,14 @@ BEGIN
     RETURN NULL;
   END IF;
   
-  SELECT osc.sso_provider_id
+  SELECT osc."sso_provider_id"
   INTO v_provider_id
-  FROM public.saml_domain_mappings sdm
-  JOIN public.org_saml_connections osc ON osc.id = sdm.sso_connection_id
-  WHERE sdm.domain = v_domain
-    AND sdm.verified = true
-    AND osc.enabled = true
-  ORDER BY sdm.priority DESC, osc.created_at DESC
+  FROM "public"."saml_domain_mappings" sdm
+  JOIN "public"."org_saml_connections" osc ON osc."id" = sdm."sso_connection_id"
+  WHERE sdm."domain" = v_domain
+    AND sdm."verified" = true
+    AND osc."enabled" = true
+  ORDER BY sdm."priority" DESC, osc."created_at" DESC
   LIMIT 1;
   
   RETURN v_provider_id;
@@ -453,7 +431,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_org record;
@@ -469,44 +447,43 @@ BEGIN
   -- Find organizations with this SSO provider that have auto-join enabled
   FOR v_org IN
     SELECT DISTINCT 
-      osc.org_id,
-      o.name as org_name
-    FROM public.org_saml_connections osc
-    JOIN public.orgs o ON o.id = osc.org_id
-    WHERE osc.sso_provider_id = p_sso_provider_id
-      AND osc.enabled = true
-      AND osc.auto_join_enabled = true  -- Only enroll if auto-join is enabled
+      osc."org_id",
+      o."name" as org_name
+    FROM "public"."org_saml_connections" osc
+    JOIN "public"."orgs" o ON o."id" = osc."org_id"
+    WHERE osc."sso_provider_id" = p_sso_provider_id
+      AND osc."enabled" = true
+      AND osc."auto_join_enabled" = true  -- Only enroll if auto-join is enabled
   LOOP
     -- Check if user is already a member (before attempting insert)
     SELECT EXISTS (
-      SELECT 1 FROM public.org_users 
-      WHERE user_id = p_user_id AND org_id = v_org.org_id
+      SELECT 1 FROM "public"."org_users" 
+      WHERE "user_id" = p_user_id AND "org_id" = v_org.org_id
     ) INTO v_already_member;
     
     -- Only insert and log if user is NOT already a member
     IF NOT v_already_member THEN
-      -- Add user to organization with read permission (idempotent - ON CONFLICT prevents race conditions)
-      INSERT INTO public.org_users (user_id, org_id, user_right, created_at)
-      VALUES (p_user_id, v_org.org_id, 'read', now())
-      ON CONFLICT (user_id, org_id) DO NOTHING;
+      -- Add user to organization with read permission
+      INSERT INTO "public"."org_users" ("user_id", "org_id", "user_right", "created_at")
+      VALUES (p_user_id, v_org.org_id, 'read', "now"());
       
       -- Log the auto-enrollment
-      INSERT INTO public.sso_audit_logs (
-        user_id,
-        email,
-        event_type,
-        org_id,
-        sso_provider_id,
-        metadata
+      INSERT INTO "public"."sso_audit_logs" (
+        "user_id",
+        "email",
+        "event_type",
+        "org_id",
+        "sso_provider_id",
+        "metadata"
       ) VALUES (
         p_user_id,
         p_email,
         'auto_join_success',
         v_org.org_id,
         p_sso_provider_id,
-        jsonb_build_object(
+        "jsonb_build_object"(
           'enrollment_method', 'sso_auto_join',
-          'timestamp', now()
+          'timestamp', "now"()
         )
       );
       
@@ -565,7 +542,7 @@ CREATE OR REPLACE FUNCTION public.auto_join_user_to_orgs_by_email(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_domain text;
@@ -580,44 +557,45 @@ BEGIN
   
   -- Priority 1: SSO provider-based enrollment (strongest binding)
   IF p_sso_provider_id IS NOT NULL THEN
-    PERFORM internal_auto_enroll_sso_user(p_user_id, p_email, p_sso_provider_id);
+    PERFORM "public"."auto_enroll_sso_user"(p_user_id, p_email, p_sso_provider_id);
     RETURN;  -- SSO enrollment takes precedence
   END IF;
   
   -- Priority 2: SAML domain mappings based enrollment
   -- Check saml_domain_mappings table for matching domains
   FOR v_org IN 
-    SELECT DISTINCT o.id, o.name
-    FROM public.orgs o
-    INNER JOIN public.saml_domain_mappings sdm ON sdm.org_id = o.id
-    INNER JOIN public.org_saml_connections osc ON osc.org_id = o.id
-    WHERE sdm.domain = v_domain
-      AND sdm.verified = true
-      AND osc.enabled = true
-      AND osc.auto_join_enabled = true
+    SELECT DISTINCT o."id", o."name"
+    FROM "public"."orgs" o
+    INNER JOIN "public"."saml_domain_mappings" sdm ON sdm."org_id" = o."id"
+    WHERE sdm."domain" = v_domain
+      AND sdm."verified" = true
       AND NOT EXISTS (
-        SELECT 1 FROM public.org_users ou 
-        WHERE ou.user_id = p_user_id AND ou.org_id = o.id
+        SELECT 1 FROM "public"."org_users" ou 
+        WHERE ou."user_id" = p_user_id AND ou."org_id" = o."id"
       )
   LOOP
-    -- Add user to org with read permission (idempotent - ON CONFLICT prevents race conditions)
-    INSERT INTO public.org_users (user_id, org_id, user_right, created_at)
-    VALUES (p_user_id, v_org.id, 'read', now())
-    ON CONFLICT (user_id, org_id) DO NOTHING;
+    -- Add user to org with read permission
+    -- Use conditional INSERT to avoid conflicts
+    INSERT INTO "public"."org_users" ("user_id", "org_id", "user_right", "created_at")
+    SELECT p_user_id, v_org.id, 'read', "now"()
+    WHERE NOT EXISTS (
+      SELECT 1 FROM "public"."org_users" ou
+      WHERE ou."user_id" = p_user_id AND ou."org_id" = v_org.id
+    );
     
     -- Log domain-based auto-join
-    INSERT INTO public.sso_audit_logs (
-      user_id,
-      email,
-      event_type,
-      org_id,
-      metadata
+    INSERT INTO "public"."sso_audit_logs" (
+      "user_id",
+      "email",
+      "event_type",
+      "org_id",
+      "metadata"
     ) VALUES (
       p_user_id,
       p_email,
       'auto_join_success',
       v_org.id,
-      jsonb_build_object(
+      "jsonb_build_object"(
         'enrollment_method', 'saml_domain_mapping',
         'domain', v_domain
       )
@@ -640,24 +618,20 @@ CREATE OR REPLACE FUNCTION public.trigger_auto_join_on_user_create()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_email text;
   v_sso_provider_id uuid;
 BEGIN
-  v_email := COALESCE(NEW.raw_user_meta_data->>'email', NEW.email);
+  v_email := COALESCE(NEW."raw_user_meta_data"->>'email', NEW."email");
   
   IF v_email IS NULL THEN
     RETURN NEW;
   END IF;
   
-  -- Extract SSO provider ID directly from user metadata
-  BEGIN
-    v_sso_provider_id := NULLIF(NEW.raw_user_meta_data->>'sso_provider_id', '')::uuid;
-  EXCEPTION WHEN invalid_text_representation THEN
-    v_sso_provider_id := NULL;
-  END;
+  -- Extract SSO provider ID from metadata
+  v_sso_provider_id := "public"."get_sso_provider_id_for_user"(NEW."id");
   
   IF v_sso_provider_id IS NULL THEN
     BEGIN
@@ -669,11 +643,11 @@ BEGIN
   
   -- If no SSO provider in metadata, try looking it up by domain
   IF v_sso_provider_id IS NULL THEN
-    v_sso_provider_id := public.lookup_sso_provider_for_email(v_email);
+    v_sso_provider_id := "public"."lookup_sso_provider_for_email"(v_email);
   END IF;
   
   -- Perform auto-join with the provider ID (if found)
-  PERFORM public.auto_join_user_to_orgs_by_email(NEW.id, v_email, v_sso_provider_id);
+  PERFORM "public"."auto_join_user_to_orgs_by_email"(NEW."id", v_email, v_sso_provider_id);
   
   RETURN NEW;
 END;
@@ -686,7 +660,7 @@ CREATE OR REPLACE FUNCTION public.trigger_auto_join_on_user_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_email text;
@@ -694,13 +668,13 @@ DECLARE
   v_already_enrolled boolean;
 BEGIN
   -- Only process if email confirmation changed or SSO metadata added
-  IF OLD.email_confirmed_at IS NOT DISTINCT FROM NEW.email_confirmed_at 
-     AND OLD.raw_app_meta_data IS NOT DISTINCT FROM NEW.raw_app_meta_data 
-     AND OLD.raw_user_meta_data IS NOT DISTINCT FROM NEW.raw_user_meta_data THEN
+  IF OLD."email_confirmed_at" IS NOT DISTINCT FROM NEW."email_confirmed_at" 
+     AND OLD."raw_app_meta_data" IS NOT DISTINCT FROM NEW."raw_app_meta_data" 
+     AND OLD."raw_user_meta_data" IS NOT DISTINCT FROM NEW."raw_user_meta_data" THEN
     RETURN NEW;
   END IF;
   
-  v_email := COALESCE(NEW.raw_user_meta_data->>'email', NEW.email);
+  v_email := COALESCE(NEW."raw_user_meta_data"->>'email', NEW."email");
   
   IF v_email IS NULL THEN
     RETURN NEW;
@@ -753,7 +727,7 @@ CREATE OR REPLACE FUNCTION public.enforce_sso_for_domains()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 DECLARE
   v_email text;
@@ -767,8 +741,8 @@ BEGIN
   END IF;
 
   v_email := COALESCE(
-    NEW.raw_user_meta_data->>'email',
-    NEW.email
+    NEW."raw_user_meta_data"->>'email',
+    NEW."email"
   );
 
   IF v_email IS NULL THEN
@@ -781,14 +755,14 @@ BEGIN
   -- user row. If present and it matches the verified domain entry, allow the
   -- insert to proceed before blocking emails.
   BEGIN
-    v_metadata_provider_id := NULLIF(NEW.raw_user_meta_data->>'sso_provider_id', '')::uuid;
+    v_metadata_provider_id := NULLIF(NEW."raw_user_meta_data"->>'sso_provider_id', '')::uuid;
   EXCEPTION WHEN invalid_text_representation THEN
     v_metadata_provider_id := NULL;
   END;
 
   IF v_metadata_provider_id IS NULL THEN
     BEGIN
-      v_metadata_provider_id := NULLIF(NEW.raw_app_meta_data->>'sso_provider_id', '')::uuid;
+      v_metadata_provider_id := NULLIF(NEW."raw_app_meta_data"->>'sso_provider_id', '')::uuid;
     EXCEPTION WHEN invalid_text_representation THEN
       v_metadata_provider_id := NULL;
     END;
@@ -797,12 +771,12 @@ BEGIN
   IF v_metadata_provider_id IS NOT NULL THEN
     SELECT EXISTS (
       SELECT 1
-      FROM public.saml_domain_mappings sdm
-      JOIN public.org_saml_connections osc ON osc.id = sdm.sso_connection_id
-      WHERE sdm.domain = v_domain
-        AND sdm.verified = true
-        AND osc.enabled = true
-        AND osc.sso_provider_id = v_metadata_provider_id
+      FROM "public"."saml_domain_mappings" sdm
+      JOIN "public"."org_saml_connections" osc ON osc."id" = sdm."sso_connection_id"
+      WHERE sdm."domain" = v_domain
+        AND sdm."verified" = true
+        AND osc."enabled" = true
+        AND osc."sso_provider_id" = v_metadata_provider_id
     ) INTO v_metadata_allows;
 
     IF v_metadata_allows THEN
@@ -810,12 +784,19 @@ BEGIN
     END IF;
   END IF;
 
-  -- NOTE: Cannot check auth.identities here - identity records are created AFTER user insert
-  -- in AFTER INSERT triggers, so NEW.id does not yet exist in auth.identities table.
-  -- We rely exclusively on the metadata-based validation above (sso_provider_id in raw_user_meta_data).
+  -- Check if this is an SSO signup (will have provider info in auth.identities)
+  SELECT COUNT(*) INTO v_provider_count
+  FROM "auth"."identities"
+  WHERE "user_id" = NEW."id"
+    AND "provider" != 'email';
+
+  -- If signing up via SSO provider, allow it
+  IF v_provider_count > 0 THEN
+    RETURN NEW;
+  END IF;
 
   -- Check if domain requires SSO
-  v_sso_required := public.check_sso_required_for_domain(v_email);
+  v_sso_required := "public"."check_sso_required_for_domain"(v_email);
 
   IF v_sso_required THEN
     RAISE EXCEPTION 'SSO authentication required for this email domain. Please use "Sign in with SSO" instead.'
@@ -837,35 +818,34 @@ COMMENT ON FUNCTION public.enforce_sso_for_domains IS 'Trigger function to enfor
 CREATE OR REPLACE FUNCTION public.validate_sso_configuration()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
+SET search_path = ''
 AS $$
 BEGIN
   -- Validate metadata exists
-  IF NEW.metadata_url IS NULL AND NEW.metadata_xml IS NULL THEN
+  IF NEW."metadata_url" IS NULL AND NEW."metadata_xml" IS NULL THEN
     RAISE EXCEPTION 'Either metadata_url or metadata_xml must be provided';
   END IF;
   
   -- Validate entity_id format
-  IF NULLIF(trim(NEW.entity_id), '') IS NULL THEN
+  IF NEW."entity_id" IS NULL OR NEW."entity_id" = '' THEN
     RAISE EXCEPTION 'entity_id is required';
   END IF;
   
   -- Update timestamp
-  NEW.updated_at := now();
+  NEW."updated_at" := "now"();
   
   -- Log configuration change
   IF TG_OP = 'INSERT' THEN
-    INSERT INTO public.sso_audit_logs (
-      event_type,
-      org_id,
-      sso_provider_id,
-      metadata
+    INSERT INTO "public"."sso_audit_logs" (
+      "event_type",
+      "org_id",
+      "sso_provider_id",
+      "metadata"
     ) VALUES (
       'config_created',
-      NEW.org_id,
-      NEW.sso_provider_id,
-      jsonb_build_object(
+      NEW."org_id",
+      NEW."sso_provider_id",
+      "jsonb_build_object"(
         'provider_name', NEW.provider_name,
         'entity_id', NEW.entity_id,
         'created_by', NEW.created_by
@@ -992,13 +972,20 @@ CREATE POLICY "Super admins can manage SSO connections"
     )
   );
 
--- Org members can read their org's SSO status (for UI display)
-CREATE POLICY "Org members can read SSO status"
+-- Merged SELECT policy: Super admins or org members can read SSO connections
+CREATE POLICY "Allow SELECT on org_saml_connections"
   ON public.org_saml_connections
   FOR SELECT
   TO authenticated, anon
   USING (
     public.check_min_rights(
+      'super_admin'::public.user_min_right,
+      public.get_identity_org_allowed('{all,write}'::public.key_mode[], org_id),
+      org_id,
+      NULL::character varying,
+      NULL::bigint
+    )
+    OR public.check_min_rights(
       'read'::public.user_min_right,
       public.get_identity_org_allowed('{read,write,all}'::public.key_mode[], org_id),
       org_id,
@@ -1011,15 +998,31 @@ CREATE POLICY "Org members can read SSO status"
 -- RLS POLICIES: saml_domain_mappings
 -- ============================================================================
 
--- Anyone (including anon) can read verified domain mappings for SSO detection
-CREATE POLICY "Anyone can read verified domain mappings" ON public.saml_domain_mappings FOR
-SELECT TO authenticated, anon USING (verified = true);
+-- Merged SELECT policy: Anyone can read verified mappings OR super admins can read all mappings
+CREATE POLICY "Allow SELECT on saml_domain_mappings"
+  ON public.saml_domain_mappings
+  FOR SELECT
+  TO authenticated, anon
+  USING (
+    verified = true
+    OR EXISTS (
+      SELECT 1 FROM public.org_saml_connections osc
+      WHERE osc.id = sso_connection_id
+        AND public.check_min_rights(
+          'super_admin'::public.user_min_right,
+          public.get_identity_org_allowed('{all,write}'::public.key_mode[], osc.org_id),
+          osc.org_id,
+          NULL::character varying,
+          NULL::bigint
+        )
+    )
+  );
 
 -- Super admins can manage domain mappings
 CREATE POLICY "Super admins can manage domain mappings"
   ON public.saml_domain_mappings
   FOR ALL
-  TO authenticated
+  TO authenticated, anon
   USING (
     EXISTS (
       SELECT 1 FROM public.org_saml_connections osc
@@ -1051,24 +1054,22 @@ CREATE POLICY "Super admins can manage domain mappings"
 -- RLS POLICIES: sso_audit_logs
 -- ============================================================================
 
--- Users can view their own audit logs
-CREATE POLICY "Users can view own SSO audit logs" ON public.sso_audit_logs FOR
-SELECT TO authenticated USING (user_id = auth.uid ());
-
--- Org admins can view org audit logs
-CREATE POLICY "Org admins can view org SSO audit logs"
+-- Merged SELECT policy: Users can view own logs OR admins can view org logs (optimized auth.uid())
+CREATE POLICY "Allow SELECT on sso_audit_logs"
   ON public.sso_audit_logs
   FOR SELECT
-  TO authenticated
+  TO authenticated, anon
   USING (
-    org_id IS NOT NULL
-    AND public.check_min_rights(
-      'admin'::public.user_min_right,
-      public.get_identity_org_allowed('{read,write,all}'::public.key_mode[], org_id),
-      org_id,
-      NULL::character varying,
-      NULL::bigint
-    )
+    (SELECT * FROM (SELECT auth.uid() AS uid) AS auth_check
+     WHERE user_id = auth_check.uid
+        OR (org_id IS NOT NULL
+            AND public.check_min_rights(
+              'admin'::public.user_min_right,
+              public.get_identity_org_allowed('{read,write,all}'::public.key_mode[], org_id),
+              org_id,
+              NULL::character varying,
+              NULL::bigint
+            )))
   );
 
 -- Note: No INSERT policy needed for sso_audit_logs.
