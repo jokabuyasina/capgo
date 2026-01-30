@@ -5,8 +5,9 @@ import utc from 'dayjs/plugin/utc.js'
 import { z } from 'zod/mini'
 import { honoFactory, quickError, simpleError, useCors } from '../../utils/hono.ts'
 import { middlewareV2 } from '../../utils/hono_middleware.ts'
-import { cloudlog, cloudlogErr } from '../../utils/logging.ts'
-import { hasAppRight, hasAppRightApikey, hasOrgRight, supabaseApikey, supabaseClient } from '../../utils/supabase.ts'
+import { cloudlog } from '../../utils/logging.ts'
+import { checkPermission } from '../../utils/rbac.ts'
+import { supabaseApikey, supabaseClient } from '../../utils/supabase.ts'
 
 dayjs.extend(utc)
 
@@ -322,7 +323,7 @@ async function getNormalStats(c: Context, appId: string | null, ownerOrg: string
 }
 
 async function getBundleUsage(appId: string, from: Date, to: Date, shouldGetLatestVersion: boolean, supabase: ReturnType<typeof supabaseClient>) {
-  const { data: dailyVersion, error: dailyVersionError } = await supabase
+  const { data: rawDailyVersion, error: dailyVersionError } = await supabase
     .from('daily_version')
     .select('date, app_id, version_name, install, uninstall')
     .eq('app_id', appId)

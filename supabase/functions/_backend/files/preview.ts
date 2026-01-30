@@ -1,21 +1,12 @@
 import type { Context } from 'hono'
 import type { MiddlewareKeyVariables } from '../utils/hono.ts'
-import { Buffer } from 'node:buffer'
-import { brotliDecompressSync } from 'node:zlib'
 import { getRuntimeKey } from 'hono/adapter'
-import { Hono } from 'hono/tiny'
-import { simpleError, useCors } from '../utils/hono.ts'
+import { simpleError } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { supabaseClient } from '../utils/supabase.ts'
+import { supabaseAdmin } from '../utils/supabase.ts'
 import { DEFAULT_RETRY_PARAMS, RetryBucket } from './retry.ts'
 // Cache settings
-const PREVIEW_AUTH_CACHE_PATH = '/.preview-auth'
 const PREVIEW_AUTH_CACHE_TTL_SECONDS = 60
-
-interface PreviewAuthCache {
-  actualAppId: string
-  allowPreview: boolean
-}
 
 interface BundleInfoCache {
   hasManifest: boolean
@@ -25,33 +16,6 @@ interface BundleInfoCache {
 // Check if request is from a preview subdomain (*.preview[.env].capgo.app)
 export function isPreviewSubdomain(hostname: string): boolean {
   return /^[^.]+\.preview(?:\.[^.]+)?\.(?:capgo\.app|usecapgo\.com)$/.test(hostname)
-}
-
-// Cache helpers for app preview authorization
-function buildPreviewAuthRequest(c: Context, appId: string) {
-  const helper = new CacheHelper(c)
-  if (!helper.available)
-    return null
-  return {
-    helper,
-    request: helper.buildRequest(PREVIEW_AUTH_CACHE_PATH, { app_id: appId.toLowerCase() }),
-  }
-}
-
-async function getPreviewAuth(c: Context, appId: string): Promise<PreviewAuthCache | null> {
-  const cacheEntry = buildPreviewAuthRequest(c, appId)
-  if (!cacheEntry)
-    return null
-  return cacheEntry.helper.matchJson<PreviewAuthCache>(cacheEntry.request)
-}
-
-function setPreviewAuth(c: Context, appId: string, data: PreviewAuthCache) {
-  return backgroundTask(c, async () => {
-    const cacheEntry = buildPreviewAuthRequest(c, appId)
-    if (!cacheEntry)
-      return
-    await cacheEntry.helper.putJson(cacheEntry.request, data, PREVIEW_AUTH_CACHE_TTL_SECONDS)
-  })
 }
 
 // Cache helpers for bundle info
@@ -168,13 +132,6 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   // Use admin client - preview is public when allow_preview is enabled
   // Security relies on the obscure subdomain format and the allow_preview setting
   const supabase = supabaseAdmin(c)
-
-  if (!token)
-    return simpleError('cannot_find_authorization', 'Cannot find authorization. Pass token as query param on first request.')
-
-  // Use authenticated client - RLS will enforce access based on JWT
-  const supabase = supabaseClient(c, `Bearer ${token}`)
-
   // Get app settings to check if preview is enabled
   const { data: appData, error: appError } = await supabase
     .from('apps')
@@ -182,7 +139,12 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
     .ilike('app_id', appId)
     .single()
 
-    actualAppId = appData.app_id
+  if (appError || !appData) {
+    throw simpleError('app_not_found', 'App not found', { appId, error: appError?.message })
+  }
+
+  if (!appData.allow_preview) {
+    return simpleError('preview_disabled', 'Preview is disabled for this app')
   }
 
   // Check cache for bundle info
@@ -191,15 +153,7 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   // Use the actual app_id from DB (correctly cased) for subsequent queries
   const actualAppId = appData.app_id
 
-  // Get bundle to check encryption and manifest
-  const { data: bundle, error: bundleError } = await supabase
-    .from('app_versions')
-    .select('id, session_key, manifest_count')
-    .eq('app_id', actualAppId)
-    .eq('id', versionId)
-    .single()
-
-    // Get bundle to check encryption and manifest
+  if (!bundleInfo) {
     const { data: bundle, error: bundleError } = await supabase
       .from('app_versions')
       .select('id, session_key, manifest_count')
@@ -226,50 +180,8 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   }
 
   // Check if bundle has manifest
-  if (!bundle.manifest_count || bundle.manifest_count === 0) {
+  if (!bundleInfo.hasManifest) {
     return simpleError('no_manifest', 'Bundle has no manifest and cannot be previewed')
-  }
-
-  // Look up the file in manifest - try exact match first, then with common prefixes
-  let manifestEntry: { s3_path: string, file_name: string } | null = null
-
-  // Try exact match first
-  const { data: exactMatch, error: exactError } = await supabase
-    .from('manifest')
-    .select('s3_path, file_name')
-    .eq('app_version_id', versionId)
-    .eq('file_name', filePath)
-    .single()
-
-  if (!exactError && exactMatch) {
-    manifestEntry = exactMatch
-  }
-  else {
-    // Try with common prefixes (www/, public/, dist/)
-    const prefixesToTry = ['www/', 'public/', 'dist/', '']
-    for (const prefix of prefixesToTry) {
-      const tryPath = prefix + filePath
-      if (tryPath === filePath)
-        continue // Already tried exact match
-
-      const { data: prefixMatch, error: prefixError } = await supabase
-        .from('manifest')
-        .select('s3_path, file_name')
-        .eq('app_version_id', versionId)
-        .eq('file_name', tryPath)
-        .single()
-
-      if (!prefixError && prefixMatch) {
-        manifestEntry = prefixMatch
-        cloudlog({ requestId: c.get('requestId'), message: 'found file with prefix', originalPath: filePath, foundPath: tryPath })
-        break
-      }
-    }
-  }
-
-  if (!manifestEntry) {
-    cloudlog({ requestId: c.get('requestId'), message: 'file not found in manifest', filePath, versionId })
-    return simpleError('file_not_found', 'File not found in bundle', { filePath })
   }
 
   // Preview only works on Cloudflare Workers where the R2 bucket is available.
@@ -287,7 +199,6 @@ export async function handlePreviewRequest(c: Context<MiddlewareKeyVariables>): 
   // Look up file in manifest using a single query with OR conditions for all possible paths
   // This handles deep paths like /folder1/folder2/folder3/.../file.js
   // Also check for .br (brotli) compressed variants since bundles may store compressed files
-  const supabase = supabaseAdmin(c)
   const basePaths = [
     filePath,
     `www/${filePath}`,

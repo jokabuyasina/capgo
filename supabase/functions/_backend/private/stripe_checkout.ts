@@ -4,7 +4,7 @@ import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.t
 import { cloudlog } from '../utils/logging.ts'
 import { checkPermission } from '../utils/rbac.ts'
 import { createCheckout } from '../utils/stripe.ts'
-import { hasOrgRight, supabaseClient } from '../utils/supabase.ts'
+import { supabaseClient } from '../utils/supabase.ts'
 import { getEnv } from '../utils/utils.ts'
 
 interface CheckoutData {

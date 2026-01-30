@@ -4,7 +4,7 @@ import type { Database } from '../../../utils/supabase.types.ts'
 import { z } from 'zod/mini'
 import { BRES, quickError, simpleError } from '../../../utils/hono.ts'
 import { cloudlog } from '../../../utils/logging.ts'
-import { apikeyHasOrgRight, hasOrgRightApikey, supabaseAdmin, supabaseApikey } from '../../../utils/supabase.ts'
+import { supabaseAdmin, supabaseApikey } from '../../../utils/supabase.ts'
 
 const deleteBodySchema = z.object({
   orgId: z.string(),

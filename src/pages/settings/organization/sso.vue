@@ -32,10 +32,10 @@
  * - Audit logging for all SSO operations
  *
  * BACKEND INTEGRATION:
- * - POST /private/sso_configure - Add SAML connection
- * - PUT /private/sso_update - Update SAML connection
- * - DELETE /private/sso_remove - Remove SAML connection
- * - GET /private/sso_status - Get SSO configuration status
+ * - POST /private/sso/configure - Add SAML connection
+ * - PUT /private/sso/update - Update SAML connection
+ * - DELETE /private/sso/remove - Remove SAML connection
+ * - GET /private/sso/status - Get SSO configuration status
  *
  * REQUIREMENTS:
  * - Supabase Pro plan ($25/month + $0.015/SSO MAU)
@@ -124,7 +124,11 @@ const capgoMetadata = computed(() => {
 })
 
 const hasSuperAdminPermission = computed(() => {
-  return organizationStore.hasPermissionsInRole(organizationStore.currentRole, ['super_admin'])
+  const role = organizationStore.currentRole
+  if (!role) {
+    return false
+  }
+  return organizationStore.hasPermissionsInRole(role, ['super_admin'])
 })
 
 const hasExistingConfig = computed(() => {
@@ -159,7 +163,7 @@ async function loadSSOConfig() {
       return
     }
 
-    const response = await fetch(`${defaultApiHost}/private/sso_status`, {
+    const response = await fetch(`${defaultApiHost}/private/sso/status`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -264,7 +268,7 @@ async function saveSSOConfig() {
       return
     }
 
-    const endpoint = hasExistingConfig.value ? '/private/sso_update' : '/private/sso_configure'
+    const endpoint = hasExistingConfig.value ? '/private/sso/update' : '/private/sso/configure'
     const payload: any = {
       orgId: currentOrganization.value.gid,
     }
@@ -367,7 +371,7 @@ async function saveDomain() {
     // Add new domain to existing domains
     const updatedDomains = [...configuredDomains.value, domain]
 
-    const response = await fetch(`${defaultApiHost}/private/sso_update`, {
+    const response = await fetch(`${defaultApiHost}/private/sso/update`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -431,7 +435,7 @@ async function removeDomain(domainToRemove: string) {
 
     const updatedDomains = configuredDomains.value.filter(d => d !== domainToRemove)
 
-    const response = await fetch(`${defaultApiHost}/private/sso_update`, {
+    const response = await fetch(`${defaultApiHost}/private/sso/update`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -495,7 +499,7 @@ async function toggleSSO() {
       return
     }
 
-    const response = await fetch(`${defaultApiHost}/private/sso_update`, {
+    const response = await fetch(`${defaultApiHost}/private/sso/update`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -569,7 +573,7 @@ async function toggleAutoJoin() {
       return
     }
 
-    const response = await fetch(`${defaultApiHost}/private/sso_update`, {
+    const response = await fetch(`${defaultApiHost}/private/sso/update`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -631,7 +635,7 @@ async function testSSO() {
     }
 
     // Call our custom test endpoint
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/private/sso_test`, {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/private/sso/test`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -725,7 +729,7 @@ async function deleteSSOConfig() {
       return
     }
 
-    const response = await fetch(`${defaultApiHost}/private/sso_remove`, {
+    const response = await fetch(`${defaultApiHost}/private/sso/remove`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json',

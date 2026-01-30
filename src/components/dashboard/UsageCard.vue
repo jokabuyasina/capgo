@@ -138,8 +138,6 @@ const lastDayEvolution = computed(() => {
 
   return ((lastValue - previousValue) / previousValue) * 100
 })
-
-const hasData = computed(() => effectiveData.value.length > 0)
 </script>
 
 <template>

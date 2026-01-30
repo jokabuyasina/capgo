@@ -211,7 +211,8 @@ app.post('/', middlewareV2(['read', 'write', 'all']), async (c) => {
       orgId,
     })
 
-    const pgClient = getPgClient(c, true)
+    // Read-write for UPDATE operations (entity_id update, enabling SSO)
+    const pgClient = getPgClient(c)
     const drizzleClient = getDrizzleClient(pgClient)
 
     // Get SSO configuration
@@ -285,7 +286,9 @@ app.post('/', middlewareV2(['read', 'write', 'all']), async (c) => {
       })
 
       // Check if domains are configured in Supabase Auth
-      if (!authVerification.provider?.domains || authVerification.provider.domains.length === 0) {
+      // In local development, we skip this check since domains are only in our database
+      const isLocalDev = authVerification.provider?.mock === true
+      if (!isLocalDev && (!authVerification.provider?.domains || authVerification.provider.domains.length === 0)) {
         validationWarnings.push('No domains configured in Supabase Auth - users will need to use provider ID to sign in')
       }
     }
@@ -364,15 +367,19 @@ app.post('/', middlewareV2(['read', 'write', 'all']), async (c) => {
       }
     }
 
-    // If entity_id is placeholder and we have metadata, extract and update it
-    if (metadataXml && config.entity_id === 'https://example.com/saml/entity') {
+    // If entity_id is placeholder or mock and we have metadata, extract and update it
+    // This handles both production placeholder and local development mock entity IDs
+    const isPlaceholderOrMockEntityId = config.entity_id === 'https://example.com/saml/entity'
+      || config.entity_id.startsWith('mock-entity-')
+
+    if (metadataXml && isPlaceholderOrMockEntityId) {
       const entityIdMatch = metadataXml.match(/entityID=["']([^"']+)["']/)
       if (entityIdMatch && entityIdMatch[1]) {
         const actualEntityId = entityIdMatch[1]
 
         cloudlog({
           requestId,
-          message: '[SSO Test] Updating placeholder entity_id with actual value from metadata',
+          message: '[SSO Test] Updating placeholder/mock entity_id with actual value from metadata',
           old: config.entity_id,
           new: actualEntityId,
         })

@@ -14,7 +14,7 @@ import IconDocumentDuplicate from '~icons/heroicons/document-duplicate'
 import IconTrash from '~icons/heroicons/trash'
 import IconSearch from '~icons/ic/round-search?raw'
 import IconAlertCircle from '~icons/lucide/alert-circle'
-import { bytesToMbText, getChecksumInfo } from '~/services/conversion'
+import { getChecksumInfo } from '~/services/conversion'
 import { formatDate, formatLocalDate } from '~/services/date'
 import { checkPermissions } from '~/services/permissions'
 import { checkCompatibilityNativePackages, isCompatible, useSupabase } from '~/services/supabase'
@@ -39,7 +39,6 @@ const channel = ref<(Database['public']['Tables']['channels']['Row'])>()
 const version_meta = ref<Database['public']['Tables']['app_versions_meta']['Row']>()
 const showBundleMetadataInput = ref<boolean>(false)
 const hasManifest = ref<boolean>(false)
-const manifestSize = ref<number | null>(null)
 const showChecksumTooltip = ref(false)
 
 // Channel chooser state
@@ -148,10 +147,6 @@ const zipSizeLabel = computed(() => {
   if (version.value?.external_url)
     return t('stored-externally')
   return t('metadata-not-found')
-})
-
-const checksumInfo = computed(() => {
-  return getChecksumInfo(version.value?.checksum)
 })
 
 const checksumInfo = computed(() => {

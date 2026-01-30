@@ -63,7 +63,10 @@ BEGIN
     ('00000000-0000-0000-0000-000000000000', '8b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e', 'authenticated', 'authenticated', 'rls@capgo.app', '$2a$10$0CErXxryZPucjJWq3O7qXeTJgN.tnNU5XCZy9pXKDWRi/aS9W7UFi', NOW(), NOW(), 'oljikwwipqrkwilfsytr', NOW(), '', NULL, '', '', NULL, NOW(), '{"provider": "email", "providers": ["email"]}', '{"test_identifier": "test_rls"}', 'f', NOW(), NOW(), NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL),
     ('00000000-0000-0000-0000-000000000000', 'e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a81', 'authenticated', 'authenticated', 'cli_hashed@capgo.app', '$2a$10$0CErXxryZPucjJWq3O7qXeTJgN.tnNU5XCZy9pXKDWRi/aS9W7UFi', NOW(), NOW(), 'oljikwwipqrkwilfsytc', NOW(), '', NULL, '', '', NULL, NOW(), '{"provider": "email", "providers": ["email"]}', '{"test_identifier": "test_cli_hashed"}', 'f', NOW(), NOW(), NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL),
     ('00000000-0000-0000-0000-000000000000', 'f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f708193', 'authenticated', 'authenticated', 'encrypted@capgo.app', '$2a$10$0CErXxryZPucjJWq3O7qXeTJgN.tnNU5XCZy9pXKDWRi/aS9W7UFi', NOW(), NOW(), 'oljikwwipqrkwilfsyte', NOW(), '', NULL, '', '', NULL, NOW(), '{"provider": "email", "providers": ["email"]}', '{"test_identifier": "test_encrypted"}', 'f', NOW(), NOW(), NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL),
-    ('00000000-0000-0000-0000-000000000000', '9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5061', 'authenticated', 'authenticated', 'emailprefs@capgo.app', '$2a$10$0CErXxryZPucjJWq3O7qXeTJgN.tnNU5XCZy9pXKDWRi/aS9W7UFi', NOW(), NOW(), 'oljikwwipqrkwilfsytp', NOW(), '', NULL, '', '', NULL, NOW(), '{"provider": "email", "providers": ["email"]}', '{"test_identifier": "test_email_prefs"}', 'f', NOW(), NOW(), NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL);
+    ('00000000-0000-0000-0000-000000000000', '9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5061', 'authenticated', 'authenticated', 'emailprefs@capgo.app', '$2a$10$0CErXxryZPucjJWq3O7qXeTJgN.tnNU5XCZy9pXKDWRi/aS9W7UFi', NOW(), NOW(), 'oljikwwipqrkwilfsytp', NOW(), '', NULL, '', '', NULL, NOW(), '{"provider": "email", "providers": ["email"]}', '{"test_identifier": "test_email_prefs"}', 'f', NOW(), NOW(), NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL),
+    -- SSO test user: Has NO org_users membership for Demo org (046a36ac-e03c-4590-9257-bd6c9dba9ee8)
+    -- Use this to test SSO auto-enrollment with read-only permission
+    ('00000000-0000-0000-0000-000000000000', 'a0b1c2d3-e4f5-4a6b-7c8d-9e0f1a2b3c4d', 'authenticated', 'authenticated', 'ssotest@capgo.app', '$2a$10$0CErXxryZPucjJWq3O7qXeTJgN.tnNU5XCZy9pXKDWRi/aS9W7UFi', NOW(), NOW(), 'oljikwwipqrkwilfsytss', NOW(), '', NULL, '', '', NULL, NOW(), '{"provider": "email", "providers": ["email"]}', '{"test_identifier": "test_sso"}', 'f', NOW(), NOW(), NULL, NULL, '', '', NULL, '', 0, NULL, '', NULL);
 
     INSERT INTO "public"."deleted_account" ("created_at", "email", "id") VALUES
     (NOW(), encode(extensions.digest('deleted@capgo.app'::bytea, 'sha256'::text)::bytea, 'hex'::text), '00000000-0000-0000-0000-000000000001');
@@ -261,7 +264,9 @@ BEGIN
     ('2022-06-03 05:54:15+00', '', 'rls', 'Capgo', NULL, 'rls@capgo.app', '8b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e', NOW(), 't', 't'),
     ('2022-06-03 05:54:15+00', '', 'cli_hashed', 'Capgo', NULL, 'cli_hashed@capgo.app', 'e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a81', NOW(), 't', 't'),
     ('2022-06-03 05:54:15+00', '', 'encrypted', 'Capgo', NULL, 'encrypted@capgo.app', 'f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f708193', NOW(), 't', 't'),
-    ('2022-06-03 05:54:15+00', '', 'emailprefs', 'Capgo', NULL, 'emailprefs@capgo.app', '9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5061', NOW(), 't', 't');
+    ('2022-06-03 05:54:15+00', '', 'emailprefs', 'Capgo', NULL, 'emailprefs@capgo.app', '9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5061', NOW(), 't', 't'),
+    -- SSO test user: has public.users record but NO org_users for Demo org
+    ('2022-06-03 05:54:15+00', '', 'ssotest', 'Capgo', NULL, 'ssotest@capgo.app', 'a0b1c2d3-e4f5-4a6b-7c8d-9e0f1a2b3c4d', NOW(), 't', 't');
     ALTER TABLE public.users ENABLE TRIGGER generate_org_on_user_create;
 
     ALTER TABLE public.orgs DISABLE TRIGGER generate_org_user_stripe_info_on_org_create;
@@ -282,6 +287,53 @@ BEGIN
     ('e4f5a6b7-c8d9-4ea0-9f1a-2b3c4d5e6f70', '6aa76066-55ef-4238-ade6-0b32334a4097', NOW(), NOW(), '', 'Overage Test Org', 'test@capgo.app', 'cus_overage_test_123'),
     ('e5f6a7b8-c9d0-4e1f-9a2b-3c4d5e6f7a82', '6aa76066-55ef-4238-ade6-0b32334a4097', NOW(), NOW(), '', 'Private Error Test Org', 'test@capgo.app', NULL);
     ALTER TABLE public.orgs ENABLE TRIGGER generate_org_user_stripe_info_on_org_create;
+
+    -- SSO/SAML Configuration for testing
+    -- Add mock SSO provider for Demo org (for testing SSO login with test@capgo.app)
+    INSERT INTO "public"."org_saml_connections" (
+      "id",
+      "org_id",
+      "sso_provider_id",
+      "provider_name",
+      "metadata_url",
+      "entity_id",
+      "enabled",
+      "verified",
+      "auto_join_enabled",
+      "created_at",
+      "updated_at"
+    ) VALUES (
+      'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5e',
+      '046a36ac-e03c-4590-9257-bd6c9dba9ee8', -- Demo org
+      'f1a2b3c4-d5e6-4a7b-8c9d-0e1f2a3b4c5f', -- Mock SSO provider ID
+      'Mock Okta',
+      'https://mock-sso.capgo.app/metadata',
+      'https://mock-sso.capgo.app',
+      true,
+      true,
+      true, -- Enable auto-join for testing
+      NOW(),
+      NOW()
+    );
+
+    -- Add domain mapping for capgo.app domain
+    INSERT INTO "public"."saml_domain_mappings" (
+      "id",
+      "domain",
+      "org_id",
+      "sso_connection_id",
+      "priority",
+      "verified",
+      "created_at"
+    ) VALUES (
+      'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6f',
+      'capgo.app',
+      '046a36ac-e03c-4590-9257-bd6c9dba9ee8', -- Demo org
+      'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5e', -- SSO connection ID
+      0,
+      true, -- Verified
+      NOW()
+    );
 
     INSERT INTO public.usage_credit_grants (
       org_id,
