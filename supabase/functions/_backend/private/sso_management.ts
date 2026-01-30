@@ -22,13 +22,13 @@
 import type { Context } from 'hono'
 import type { MiddlewareKeyVariables } from '../utils/hono.ts'
 import { eq } from 'drizzle-orm'
+import { Hono } from 'hono'
 import { z } from 'zod'
-import { createHono, middlewareAPISecret, parseBody, simpleError, useCors } from '../utils/hono.ts'
+import { middlewareAPISecret, parseBody, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
 import { closeClient, getDrizzleClient, getPgClient } from '../utils/pg.ts'
 import { org_saml_connections, orgs, saml_domain_mappings, sso_audit_logs } from '../utils/postgres_schema.ts'
 import { hasOrgRight } from '../utils/supabase.ts'
-import { getEnv } from '../utils/utils.ts'
 
 /**
  * =============================================================================
@@ -36,7 +36,7 @@ import { getEnv } from '../utils/utils.ts'
  * =============================================================================
  */
 
-import { version } from '../utils/version.ts'
+import { getEnv } from '../utils/utils.ts'
 
 /**
  * GoTrue Admin API Response for SSO Provider
@@ -140,12 +140,9 @@ async function registerWithSupabaseAuth(
     body.attribute_mapping = config.attributeMapping
   }
 
-  // Call GoTrue Admin API to create SSO provider with timeout
-  // Endpoint: POST /admin/sso/providers
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
-
   try {
+    // Call GoTrue Admin API to create SSO provider
+    // Endpoint: POST /admin/sso/providers
     const response = await fetch(`${supabaseUrl}/auth/v1/admin/sso/providers`, {
       method: 'POST',
       headers: {
@@ -154,10 +151,7 @@ async function registerWithSupabaseAuth(
         'apikey': serviceRoleKey,
       },
       body: JSON.stringify(body),
-      signal: controller.signal,
     })
-
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -203,14 +197,7 @@ async function registerWithSupabaseAuth(
     return result
   }
   catch (error: any) {
-    if (error.name === 'AbortError') {
-      cloudlog({
-        requestId,
-        message: '[SSO Auth] Request timeout during SSO provider creation',
-      })
-      throw simpleError('sso_auth_timeout', 'Request to Supabase Auth timed out. Please try again.')
-    }
-    if (error.code === 'sso_auth_registration_failed' || error.code === 'sso_provider_already_exists') {
+    if (error.code === 'sso_auth_registration_failed') {
       throw error
     }
 
@@ -372,9 +359,6 @@ async function updateWithSupabaseAuth(
     body.attribute_mapping = config.attributeMapping
   }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
-
   try {
     const response = await fetch(`${supabaseUrl}/auth/v1/admin/sso/providers/${providerId}`, {
       method: 'PUT',
@@ -384,10 +368,7 @@ async function updateWithSupabaseAuth(
         'apikey': serviceRoleKey,
       },
       body: JSON.stringify(body),
-      signal: controller.signal,
     })
-
-    clearTimeout(timeoutId)
 
     if (!response.ok) {
       const errorText = await response.text()
@@ -412,13 +393,6 @@ async function updateWithSupabaseAuth(
     return provider
   }
   catch (error: any) {
-    if (error.name === 'AbortError') {
-      cloudlog({
-        requestId,
-        message: '[SSO Auth] Request timeout during SSO provider update',
-      })
-      throw simpleError('sso_auth_timeout', 'Request to Supabase Auth timed out. Please try again.')
-    }
     if (error.code && error.message) {
       throw error // Re-throw our error
     }
@@ -440,8 +414,8 @@ const domainSchema = z.string().regex(
 )
 
 const metadataUrlSchema = z.string().url().regex(
-  /^https:\/\//,
-  'Metadata URL must use HTTPS',
+  /^https?:\/\//,
+  'Metadata URL must use HTTP or HTTPS',
 )
 
 /**
@@ -581,73 +555,72 @@ async function checkDomainUniqueness(
   const requestId = c.get('requestId')
   const pgClient = getPgClient(c)
 
-  // Build list of all domains and root domains to check
-  const allDomainsToCheck: string[] = []
-  const domainToRootMap = new Map<string, string>()
-
   for (const domain of domains) {
     const rootDomain = extractRootDomain(domain)
-    allDomainsToCheck.push(domain)
-    domainToRootMap.set(domain, rootDomain)
 
-    // Add root domain if it's different from the domain itself
-    if (domain !== rootDomain && !allDomainsToCheck.includes(rootDomain)) {
-      allDomainsToCheck.push(rootDomain)
-    }
-  }
+    cloudlog({
+      requestId,
+      message: 'Checking domain uniqueness',
+      domain,
+      rootDomain,
+      orgId: currentOrgId,
+    })
 
-  cloudlog({
-    requestId,
-    message: 'Checking domain uniqueness (batched)',
-    domains: allDomainsToCheck,
-    orgId: currentOrgId,
-  })
+    // Check if this exact domain is already claimed by another org
+    const exactMatch = await pgClient.query(
+      `SELECT org_id, domain 
+       FROM saml_domain_mappings 
+       WHERE domain = $1 
+       AND org_id != $2
+       LIMIT 1`,
+      [domain, currentOrgId],
+    )
 
-  // Batch query: check all domains at once
-  const claimedDomains = await pgClient.query(
-    `SELECT org_id, domain 
-     FROM saml_domain_mappings 
-     WHERE domain = ANY($1) 
-     AND org_id != $2`,
-    [allDomainsToCheck, currentOrgId],
-  )
-
-  // Build a map of claimed domains for quick lookup
-  const claimedMap = new Map<string, string>()
-  for (const row of claimedDomains.rows) {
-    claimedMap.set(row.domain, row.org_id)
-  }
-
-  // Validate each requested domain
-  for (const domain of domains) {
-    const rootDomain = domainToRootMap.get(domain)!
-
-    // Check if this exact domain is already claimed
-    if (claimedMap.has(domain)) {
+    if (exactMatch.rows.length > 0) {
       throw simpleError('domain_already_claimed', `Domain ${domain} is already claimed by another organization`, {
         domain,
-        claimedBy: claimedMap.get(domain),
+        claimedBy: exactMatch.rows[0].org_id,
       })
     }
 
-    // If this is a root domain, it must be unique
+    // If this is a root domain (no subdomain), check uniqueness
     if (domain === rootDomain) {
-      if (claimedMap.has(rootDomain)) {
+      // Root domain: check if ANY org has claimed it
+      const rootMatch = await pgClient.query(
+        `SELECT org_id, domain 
+         FROM saml_domain_mappings 
+         WHERE domain = $1 
+         AND org_id != $2
+         LIMIT 1`,
+        [rootDomain, currentOrgId],
+      )
+
+      if (rootMatch.rows.length > 0) {
         throw simpleError('root_domain_already_claimed', `Root domain ${rootDomain} is already claimed by another organization. Consider using a subdomain like subdomain.${rootDomain}`, {
           domain: rootDomain,
-          claimedBy: claimedMap.get(rootDomain),
+          claimedBy: rootMatch.rows[0].org_id,
         })
       }
     }
     else {
-      // Subdomain: log if root is owned by another org (allowed)
-      if (claimedMap.has(rootDomain)) {
+      // Subdomain: check if root domain is claimed by ANOTHER org
+      const rootOwnedByOther = await pgClient.query(
+        `SELECT org_id, domain 
+         FROM saml_domain_mappings 
+         WHERE domain = $1 
+         AND org_id != $2
+         LIMIT 1`,
+        [rootDomain, currentOrgId],
+      )
+
+      if (rootOwnedByOther.rows.length > 0) {
+        // Root is owned by another org - subdomain is allowed
         cloudlog({
           requestId,
           message: 'Subdomain allowed - root owned by different org',
           subdomain: domain,
           rootDomain,
-          rootOwner: claimedMap.get(rootDomain),
+          rootOwner: rootOwnedByOther.rows[0].org_id,
         })
       }
     }
@@ -765,7 +738,6 @@ async function logSSOAuditEvent(
 
   try {
     await drizzleClient.insert(sso_audit_logs).values({
-      id: crypto.randomUUID(),
       event_type: event.eventType,
       org_id: event.orgId,
       sso_provider_id: event.ssoProviderId || null,
@@ -930,7 +902,6 @@ export async function configureSAML(
 
     // Store configuration in our database
     await drizzleClient.insert(org_saml_connections).values({
-      id: crypto.randomUUID(),
       org_id: config.orgId,
       sso_provider_id: authProvider.id,
       provider_name: providerName,
@@ -955,7 +926,6 @@ export async function configureSAML(
 
       for (let i = 0; i < domains.length; i++) {
         await drizzleClient.insert(saml_domain_mappings).values({
-          id: crypto.randomUUID(),
           domain: domains[i].toLowerCase(),
           org_id: config.orgId,
           sso_connection_id: connectionId,
@@ -1109,7 +1079,6 @@ export async function updateSAML(
       if (update.domains.length > 0) {
         for (let i = 0; i < update.domains.length; i++) {
           await drizzleClient.insert(saml_domain_mappings).values({
-            id: crypto.randomUUID(),
             domain: update.domains[i].toLowerCase(),
             org_id: existing[0].org_id,
             sso_connection_id: existing[0].id,
@@ -1312,7 +1281,7 @@ export async function getSSOStatus(
   }
 }
 
-export const app = createHono('sso_management', version)
+export const app = new Hono<MiddlewareKeyVariables>()
 
 app.use('/', useCors)
 
@@ -1322,55 +1291,62 @@ app.use('/', useCors)
  */
 app.post('/configure', middlewareAPISecret, async (c: Context<MiddlewareKeyVariables>) => {
   const requestId = c.get('requestId')
+  const pgClient = getPgClient(c, true)
 
-  const body = await parseBody<z.infer<typeof ssoConfigSchema>>(c)
+  try {
+    const body = await parseBody<z.infer<typeof ssoConfigSchema>>(c)
 
-  // Validate schema
-  const result = ssoConfigSchema.safeParse(body)
-  if (!result.success) {
-    throw simpleError('invalid_input', 'Invalid request body', { errors: result.error.issues })
+    // Validate schema
+    const result = ssoConfigSchema.safeParse(body)
+    if (!result.success) {
+      throw simpleError('invalid_input', 'Invalid request body', { errors: result.error.issues })
+    }
+
+    const config = result.data
+
+    // Check permission early, before other validations
+    // Use userId from body if provided (for internal API calls), otherwise from auth context
+    const auth = c.get('auth')
+    const effectiveUserId = config.userId || auth?.userId
+    if (!effectiveUserId) {
+      throw simpleError('unauthorized', 'Authentication required - userId must be provided', 401)
+    }
+
+    cloudlog({
+      requestId,
+      message: '[SSO Configure] Checking permissions',
+      orgId: config.orgId,
+      effectiveUserId,
+      requiredRight: 'super_admin',
+    })
+
+    const hasPermission = await hasOrgRight(c, config.orgId, effectiveUserId, 'super_admin')
+
+    cloudlog({
+      requestId,
+      message: '[SSO Configure] Permission check result',
+      hasPermission,
+    })
+
+    if (!hasPermission) {
+      throw simpleError('insufficient_permissions', 'Only super administrators can configure SSO', 403)
+    }
+
+    cloudlog({
+      requestId,
+      message: '[SSO Configure] Request received',
+      orgId: config.orgId,
+      domains: config.domains || [],
+    })
+
+    // Pass userId to configureSAML
+    const response = await configureSAML(c, config, effectiveUserId)
+    return c.json(response, 200)
   }
-
-  const config = result.data
-
-  // Check permission early, before other validations
-  // Use userId from body if provided (for internal API calls), otherwise from auth context
-  const auth = c.get('auth')
-  const effectiveUserId = config.userId || auth?.userId
-  if (!effectiveUserId) {
-    throw simpleError('unauthorized', 'Authentication required - userId must be provided', 401)
+  catch (error: any) {
+    await closeClient(c, pgClient)
+    throw error
   }
-
-  cloudlog({
-    requestId,
-    message: '[SSO Configure] Checking permissions',
-    orgId: config.orgId,
-    effectiveUserId,
-    requiredRight: 'super_admin',
-  })
-
-  const hasPermission = await hasOrgRight(c, config.orgId, effectiveUserId, 'super_admin')
-
-  cloudlog({
-    requestId,
-    message: '[SSO Configure] Permission check result',
-    hasPermission,
-  })
-
-  if (!hasPermission) {
-    throw simpleError('insufficient_permissions', 'Only super administrators can configure SSO', 403)
-  }
-
-  cloudlog({
-    requestId,
-    message: '[SSO Configure] Request received',
-    orgId: config.orgId,
-    domains: config.domains || [],
-  })
-
-  // Pass userId to configureSAML
-  const response = await configureSAML(c, config, effectiveUserId)
-  return c.json(response, 200)
 })
 
 /**
@@ -1398,17 +1374,6 @@ app.post('/update', middlewareAPISecret, async (c: Context<MiddlewareKeyVariable
       orgId: config.orgId,
       providerId: config.providerId,
     })
-
-    // Verify caller has super_admin permissions for the organization
-    const auth = c.get('auth')
-    if (!auth?.userId) {
-      throw simpleError('unauthorized', 'Authentication required', 401)
-    }
-
-    const hasPermission = await hasOrgRight(c, config.orgId, auth.userId, 'super_admin')
-    if (!hasPermission) {
-      throw simpleError('insufficient_permissions', 'Only super administrators can update SSO connections', 403)
-    }
 
     const response = await updateSAML(c, config)
     return c.json(response, 200)
@@ -1440,19 +1405,6 @@ app.delete('/remove', middlewareAPISecret, async (c: Context<MiddlewareKeyVariab
       orgId: body.orgId,
       providerId: body.providerId,
     })
-
-    // Verify caller has super_admin permissions for the organization
-    const auth = c.get('auth')
-    if (!auth?.userId) {
-      await closeClient(c, pgClient)
-      throw simpleError('unauthorized', 'Authentication required', 401)
-    }
-
-    const hasPermission = await hasOrgRight(c, body.orgId, auth.userId, 'super_admin')
-    if (!hasPermission) {
-      await closeClient(c, pgClient)
-      throw simpleError('insufficient_permissions', 'Only super administrators can remove SSO connections', 403)
-    }
 
     const response = await removeSAML(c, body.orgId, body.providerId)
     return c.json(response, 200)

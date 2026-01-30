@@ -26,15 +26,15 @@
  * }
  */
 
-import { createHono, parseBody, quickError, simpleError, useCors } from '../utils/hono.ts'
+import type { MiddlewareKeyVariables } from '../utils/hono.ts'
+import { Hono } from 'hono'
+import { parseBody, quickError, simpleError, useCors } from '../utils/hono.ts'
 import { middlewareV2 } from '../utils/hono_middleware.ts'
 import { cloudlog } from '../utils/logging.ts'
 import { hasOrgRight } from '../utils/supabase.ts'
-import { version } from '../utils/version.ts'
 import { configureSAML, ssoConfigSchema } from './sso_management.ts'
 
-const functionName = 'sso_configure'
-export const app = createHono(functionName, version)
+export const app = new Hono<MiddlewareKeyVariables>()
 
 app.use('/', useCors)
 
@@ -43,7 +43,7 @@ app.post('/', middlewareV2(['all']), async (c) => {
   const requestId = c.get('requestId')
 
   if (!auth?.userId) {
-    throw simpleError('unauthorized', 'Authentication required')
+    return simpleError('unauthorized', 'Authentication required')
   }
 
   cloudlog({
