@@ -854,8 +854,8 @@ export async function configureSAML(
     domainCount: domains.length,
   })
 
-  // Initialize database client
-  const pgClient = getPgClient(c, true)
+  // Initialize database client (read-write for INSERT operations)
+  const pgClient = getPgClient(c)
   const drizzleClient = getDrizzleClient(pgClient)
 
   try {
@@ -1000,7 +1000,8 @@ export async function updateSAML(
     providerId: update.providerId,
   })
 
-  const pgClient = getPgClient(c, true)
+  // Read-write for UPDATE operations
+  const pgClient = getPgClient(c)
   const drizzleClient = getDrizzleClient(pgClient)
 
   try {
@@ -1157,7 +1158,8 @@ export async function removeSAML(
     providerId,
   })
 
-  const pgClient = getPgClient(c, true)
+  // Read-write for DELETE operations
+  const pgClient = getPgClient(c)
   const drizzleClient = getDrizzleClient(pgClient)
 
   try {
@@ -1225,7 +1227,8 @@ export async function getSSOStatus(
   orgId: string,
 ): Promise<any> {
   const requestId = c.get('requestId')
-  const pgClient = getPgClient(c, true)
+  // Read-write for audit log INSERT
+  const pgClient = getPgClient(c)
   const drizzleClient = getDrizzleClient(pgClient)
 
   try {
@@ -1291,7 +1294,7 @@ app.use('/', useCors)
  */
 app.post('/configure', middlewareAPISecret, async (c: Context<MiddlewareKeyVariables>) => {
   const requestId = c.get('requestId')
-  const pgClient = getPgClient(c, true)
+  const pgClient = getPgClient(c) // Read-write for INSERT
 
   try {
     const body = await parseBody<z.infer<typeof ssoConfigSchema>>(c)
@@ -1355,7 +1358,7 @@ app.post('/configure', middlewareAPISecret, async (c: Context<MiddlewareKeyVaria
  */
 app.post('/update', middlewareAPISecret, async (c: Context<MiddlewareKeyVariables>) => {
   const requestId = c.get('requestId')
-  const pgClient = getPgClient(c, true)
+  const pgClient = getPgClient(c) // Read-write for UPDATE
 
   try {
     const body = await parseBody<z.infer<typeof ssoUpdateSchema>>(c)
@@ -1390,7 +1393,7 @@ app.post('/update', middlewareAPISecret, async (c: Context<MiddlewareKeyVariable
  */
 app.delete('/remove', middlewareAPISecret, async (c: Context<MiddlewareKeyVariables>) => {
   const requestId = c.get('requestId')
-  const pgClient = getPgClient(c, true)
+  const pgClient = getPgClient(c) // Read-write for DELETE
 
   try {
     const body = await parseBody<{ orgId: string, providerId: string }>(c)
@@ -1421,7 +1424,7 @@ app.delete('/remove', middlewareAPISecret, async (c: Context<MiddlewareKeyVariab
  */
 app.get('/status', middlewareAPISecret, async (c: Context<MiddlewareKeyVariables>) => {
   const requestId = c.get('requestId')
-  const pgClient = getPgClient(c, true)
+  const pgClient = getPgClient(c) // Read-write for audit log INSERT
 
   try {
     const orgId = c.req.query('orgId')

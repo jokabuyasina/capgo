@@ -408,6 +408,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/settings/organization/sso': RouteRecordInfo<
+      '/settings/organization/sso',
+      '/settings/organization/sso',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/settings/organization/Usage': RouteRecordInfo<
       '/settings/organization/Usage',
       '/settings/organization/Usage',
@@ -418,6 +425,13 @@ declare module 'vue-router/auto-routes' {
     '/settings/organization/Webhooks': RouteRecordInfo<
       '/settings/organization/Webhooks',
       '/settings/organization/Webhooks',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/sso-login': RouteRecordInfo<
+      '/sso-login',
+      '/sso-login',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -772,6 +786,12 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'src/pages/settings/organization/sso.vue': {
+      routes:
+        | '/settings/organization/sso'
+      views:
+        | never
+    }
     'src/pages/settings/organization/Usage.vue': {
       routes:
         | '/settings/organization/Usage'
@@ -781,6 +801,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/settings/organization/Webhooks.vue': {
       routes:
         | '/settings/organization/Webhooks'
+      views:
+        | never
+    }
+    'src/pages/sso-login.vue': {
+      routes:
+        | '/sso-login'
       views:
         | never
     }

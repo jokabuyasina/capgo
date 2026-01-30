@@ -7,7 +7,7 @@ import { z } from 'zod/mini'
 import { trackBentoEvent } from '../utils/bento.ts'
 import { BRES, middlewareAuth, parseBody, quickError, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { hasOrgRight, supabaseClient } from '../utils/supabase.ts'
+import { supabaseClient } from '../utils/supabase.ts'
 import { getEnv } from '../utils/utils.ts'
 
 // Validate name to prevent HTML/script injection
@@ -153,7 +153,7 @@ async function validateInvite(c: Context, rawBody: any) {
   if (inviteCreatorUserError) {
     return { message: 'Failed to invite user', error: inviteCreatorUserError.message, status: 500 }
   }
-  return { inviteCreatorUser, org, body, authorization }
+  return { inviteCreatorUser, org, body, authorization, legacyInviteType, rbacRoleName }
 }
 
 app.post('/', middlewareAuth, async (c) => {

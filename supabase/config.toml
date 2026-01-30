@@ -375,3 +375,15 @@ import_map = "./functions/deno.json"
 verify_jwt = false
 import_map = "./functions/deno.json"
 
+# SSO CHECK ENDPOINT (PUBLIC)
+
+[functions.sso_check]
+verify_jwt = false
+import_map = "./functions/deno.json"
+
+# MOCK SSO CALLBACK (LOCAL DEV ONLY)
+
+[functions.mock-sso-callback]
+verify_jwt = false
+import_map = "./functions/deno.json"
+
