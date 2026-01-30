@@ -8,7 +8,7 @@ import iconEmail from '~icons/oui/email?raw'
 import { useSSODetection } from '~/composables/useSSODetection'
 import { openSupport } from '~/services/support'
 
-const route = useRoute()
+const route = useRoute('/sso-login')
 const router = useRouter()
 const { t } = useI18n()
 const isLoading = ref(false)
@@ -24,33 +24,34 @@ async function continueWithSSO(form: { email: string }) {
     return
   }
 
+  console.log('🔵 SSO Login - Starting flow for:', form.email)
   isLoading.value = true
 
   try {
     // Check if SSO is available for this domain
+    console.log('🔵 SSO Login - Checking SSO availability...')
     const hasSSO = await checkSSO(form.email)
+    console.log('🔵 SSO Login - SSO available:', hasSSO)
 
     if (!hasSSO) {
+      console.error('❌ SSO Login - SSO not configured for this email domain')
       toast.error(t('sso-not-configured', 'SSO is not configured for this email domain. Please contact your administrator.'))
+      isLoading.value = false
       return
     }
 
-    // Validate and sanitize redirect path to prevent open redirects
-    let redirectTo = '/dashboard'
-    if (route.query.to && typeof route.query.to === 'string') {
-      const to = route.query.to
-      // Only allow relative paths starting with / and not containing protocol/host
-      if (to.startsWith('/') && !to.includes('//') && !to.startsWith('//')) {
-        redirectTo = to
-      }
-    }
+    // Initiate SSO authentication
+    const redirectTo = route.query.to && typeof route.query.to === 'string'
+      ? route.query.to
+      : '/dashboard'
 
+    console.log('🔵 SSO Login - Initiating SSO with redirectTo:', redirectTo)
     await initiateSSO(redirectTo, form.email)
+    console.log('🔵 SSO Login - initiateSSO completed (should have redirected)')
   }
-  catch {
+  catch (error: any) {
+    console.error('❌ SSO login error:', error)
     toast.error(t('sso-login-failed', 'Failed to initiate SSO login'))
-  }
-  finally {
     isLoading.value = false
   }
 }
@@ -149,7 +150,7 @@ function goBack() {
             <LangSelector />
           </div>
           <button class="p-2 mt-3 text-gray-500 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600" @click="openSupport">
-            {{ t('support') }}
+            {{ t("support") }}
           </button>
         </section>
       </div>
