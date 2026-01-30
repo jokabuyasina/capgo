@@ -746,6 +746,7 @@ DECLARE
   v_sso_required boolean;
   v_metadata_provider_id uuid;
   v_metadata_allows boolean := false;
+  v_provider_count integer;
 BEGIN
   IF TG_OP != 'INSERT' THEN
     RETURN NEW;
