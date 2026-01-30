@@ -445,17 +445,6 @@ export const useOrganizationStore = defineStore('organization', () => {
     }
   }
 
-  // Get current org's password policy status
-  const getPasswordPolicyStatus = () => {
-    if (!currentOrganization.value)
-      return null
-    return {
-      hasPolicy: !!currentOrganization.value.password_policy_config?.enabled,
-      isCompliant: currentOrganization.value.password_has_access ?? true,
-      config: currentOrganization.value.password_policy_config,
-    }
-  }
-
   const deleteOrganization = async (orgId: string) => {
     // Validate input
     if (!orgId || typeof orgId !== 'string' || orgId.trim() === '') {
