@@ -36,7 +36,7 @@ certificate_expires_at timestamptz,
 certificate_last_checked timestamptz DEFAULT now(),
 
 -- Status Flags
-enabled boolean NOT NULL DEFAULT false,
+enabled boolean NOT NULL DEFAULT true,
 verified boolean NOT NULL DEFAULT false,
 auto_join_enabled boolean NOT NULL DEFAULT false, -- Controls automatic enrollment
 
@@ -212,7 +212,7 @@ DECLARE
 BEGIN
   v_domain := lower(split_part(p_email, '@', 2));
   
-  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
+  IF NULLIF(trim(v_domain), '') IS NULL THEN
     RETURN false;
   END IF;
   
@@ -261,24 +261,51 @@ SET search_path = public
 AS $$
 DECLARE
   v_provider_id uuid;
+  v_provider_str text;
 BEGIN
-  SELECT (raw_app_meta_data->>'sso_provider_id')::uuid
-  INTO v_provider_id
-  FROM auth.users
-  WHERE id = p_user_id;
-  
-  IF v_provider_id IS NULL THEN
-    SELECT (raw_user_meta_data->>'sso_provider_id')::uuid
-    INTO v_provider_id
+  -- Authorization: only allow reading own data unless called by system
+  -- Triggers run as SECURITY DEFINER so they bypass this check
+  IF auth.uid() IS NOT NULL AND auth.uid() != p_user_id THEN
+    RETURN NULL;
+  END IF;
+
+  -- Try raw_app_meta_data first (set by Supabase Auth during SSO login)
+  BEGIN
+    SELECT NULLIF(raw_app_meta_data->>'sso_provider_id', '')
+    INTO v_provider_str
     FROM auth.users
     WHERE id = p_user_id;
+    
+    IF v_provider_str IS NOT NULL THEN
+      v_provider_id := v_provider_str::uuid;
+    END IF;
+  EXCEPTION WHEN invalid_text_representation THEN
+    -- Invalid UUID format in app metadata, ignore
+    v_provider_id := NULL;
+  END;
+  
+  -- Fallback to raw_user_meta_data if not found
+  IF v_provider_id IS NULL THEN
+    BEGIN
+      SELECT NULLIF(raw_user_meta_data->>'sso_provider_id', '')
+      INTO v_provider_str
+      FROM auth.users
+      WHERE id = p_user_id;
+      
+      IF v_provider_str IS NOT NULL THEN
+        v_provider_id := v_provider_str::uuid;
+      END IF;
+    EXCEPTION WHEN invalid_text_representation THEN
+      -- Invalid UUID format in user metadata, ignore
+      v_provider_id := NULL;
+    END;
   END IF;
   
   RETURN v_provider_id;
 END;
 $$;
 
-COMMENT ON FUNCTION public.get_sso_provider_id_for_user IS 'Retrieves SSO provider ID from user metadata';
+COMMENT ON FUNCTION public.get_sso_provider_id_for_user IS 'Retrieves SSO provider ID from user metadata. Only callable by the user themselves or system triggers.';
 
 -- Helper function to check if org already has SSO configured
 CREATE OR REPLACE FUNCTION public.org_has_sso_configured(p_org_id uuid)
@@ -324,7 +351,7 @@ BEGIN
   -- Extract domain from email
   v_domain := lower(split_part(p_email, '@', 2));
   
-  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
+  IF NULLIF(trim(v_domain), '') IS NULL THEN
     RETURN;
   END IF;
   
@@ -364,7 +391,7 @@ DECLARE
 BEGIN
   v_domain := lower(split_part(p_email, '@', 2));
   
-  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
+  IF NULLIF(trim(v_domain), '') IS NULL THEN
     RETURN NULL;
   END IF;
   
@@ -406,8 +433,18 @@ AS $$
 DECLARE
   v_org record;
   v_already_member boolean;
+  v_stored_email text;
 BEGIN
-  -- No auth.uid() check - this is an internal function for triggers
+  -- Validate caller identity: p_user_id must match authenticated user
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: user_id mismatch';
+  END IF;
+  
+  -- Validate email matches the stored email for this user
+  SELECT email INTO v_stored_email FROM auth.users WHERE id = p_user_id;
+  IF v_stored_email IS NULL OR lower(v_stored_email) != lower(p_email) THEN
+    RAISE EXCEPTION 'Unauthorized: email mismatch';
+  END IF;
   
   -- Find organizations with this SSO provider that have auto-join enabled
   FOR v_org IN
@@ -511,22 +548,22 @@ AS $$
 DECLARE
   v_domain text;
   v_org record;
-  v_auth_email text;
+  v_stored_email text;
 BEGIN
-  -- Authorization: allow if user_id matches OR caller has service_role privileges OR called from trigger (auth.uid() is NULL)
-  IF auth.uid() IS NOT NULL AND p_user_id != auth.uid() AND auth.jwt() ->> 'role' != 'service_role' THEN
-    RAISE EXCEPTION 'Unauthorized: cannot join other users to orgs (user_id mismatch)';
+  -- Validate caller identity: p_user_id must match authenticated user
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: user_id mismatch';
   END IF;
   
-  -- Email validation: ensure p_email matches the email in auth.users for p_user_id
-  SELECT email INTO v_auth_email FROM auth.users WHERE id = p_user_id;
-  IF v_auth_email IS NULL OR lower(v_auth_email) != lower(p_email) THEN
-    RAISE EXCEPTION 'Unauthorized: email mismatch for user';
+  -- Validate email matches the stored email for this user
+  SELECT email INTO v_stored_email FROM auth.users WHERE id = p_user_id;
+  IF v_stored_email IS NULL OR lower(v_stored_email) != lower(p_email) THEN
+    RAISE EXCEPTION 'Unauthorized: email mismatch';
   END IF;
   
   v_domain := lower(split_part(p_email, '@', 2));
   
-  IF v_domain IS NULL OR LENGTH(v_domain) = 0 THEN
+  IF NULLIF(trim(v_domain), '') IS NULL THEN
     RETURN;
   END IF;
   
@@ -776,7 +813,7 @@ BEGIN
   END IF;
   
   -- Validate entity_id format
-  IF NEW.entity_id IS NULL OR LENGTH(NEW.entity_id) = 0 THEN
+  IF NULLIF(trim(NEW.entity_id), '') IS NULL THEN
     RAISE EXCEPTION 'entity_id is required';
   END IF;
   
@@ -1000,8 +1037,8 @@ CREATE POLICY "Org admins can view org SSO audit logs"
     )
   );
 
--- NOTE: No INSERT policy needed - SECURITY DEFINER functions bypass RLS
--- Removing overly permissive policy that allowed any authenticated user to insert audit logs
+-- Note: No INSERT policy needed for sso_audit_logs since SECURITY DEFINER
+-- functions bypass RLS. Only service_role should insert directly.
 
 -- ============================================================================
 -- GRANTS: Ensure proper permissions
@@ -1047,8 +1084,14 @@ EXECUTE ON FUNCTION public.auto_enroll_sso_user TO authenticated;
 GRANT
 EXECUTE ON FUNCTION public.auto_join_user_to_orgs_by_email TO authenticated;
 
--- NOTE: Trigger functions should NOT be granted to authenticated - they are only called by DB triggers
--- Only postgres and supabase_auth_admin (trigger context) should have EXECUTE permissions
+-- Revoke public/authenticated access to trigger functions (DB triggers only)
+REVOKE
+EXECUTE ON FUNCTION public.trigger_auto_join_on_user_create
+FROM PUBLIC;
+
+REVOKE
+EXECUTE ON FUNCTION public.trigger_auto_join_on_user_update
+FROM PUBLIC;
 
 -- Grant special permissions to auth admin for trigger functions
 GRANT

@@ -3,8 +3,7 @@ import { Hono } from 'hono/tiny'
 import { getBundleUrl, getManifestUrl } from '../utils/downloadUrl.ts'
 import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { checkPermission } from '../utils/rbac.ts'
-import { supabaseClient } from '../utils/supabase.ts'
+import { hasAppRight, supabaseClient } from '../utils/supabase.ts'
 
 interface DataDownload {
   app_id: string

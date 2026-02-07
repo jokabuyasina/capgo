@@ -3,7 +3,7 @@ import { Hono } from 'hono/tiny'
 import { z } from 'zod/mini'
 import { parseBody, quickError, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { supabaseClient, supabaseAdmin as useSupabaseAdmin } from '../utils/supabase.ts'
+import { emptySupabase, supabaseClient, supabaseAdmin as useSupabaseAdmin } from '../utils/supabase.ts'
 
 interface ValidatePasswordCompliance {
   email: string
@@ -64,10 +64,10 @@ app.post('/', async (c) => {
 
   const body = validationResult.data
   const { password: _password, ...bodyWithoutPassword } = body
-  cloudlog({ requestId: c.get('requestId'), context: 'validate_password_compliance raw body', rawBody: bodyWithoutPassword })
+  cloudlog({ requestId: c.get('requestId'), context: 'validate_password_compliance parsed body', parsedBody: bodyWithoutPassword })
   const supabaseAdmin = useSupabaseAdmin(c)
 
-  // Get the org's password policy - need admin for initial lookup
+  // Get the org's password policy
   const { data: org, error: orgError } = await supabaseAdmin
     .from('orgs')
     .select('id, password_policy_config')
@@ -92,13 +92,14 @@ app.post('/', async (c) => {
   }
 
   // Attempt to sign in with the provided credentials to verify password
-  // Note: signInWithPassword needs admin to work without session
-  const { data: signInData, error: signInError } = await supabaseAdmin.auth.signInWithPassword({
+  // Use anon client so RLS policies are enforced
+  const anonClient = emptySupabase(c)
+  const { data: signInData, error: signInError } = await anonClient.auth.signInWithPassword({
     email: body.email,
     password: body.password,
   })
 
-  if (signInError || !signInData.user || !signInData.session) {
+  if (signInError || !signInData.user) {
     cloudlog({ requestId: c.get('requestId'), context: 'validate_password_compliance - login failed', error: signInError?.message })
     return quickError(401, 'invalid_credentials', 'Invalid email or password')
   }
@@ -107,6 +108,14 @@ app.post('/', async (c) => {
 
   // Use authenticated client for subsequent queries - RLS will enforce access
   const supabase = supabaseClient(c, `Bearer ${signInData.session.access_token}`)
+
+  // Verify user is a member of this organization
+  const { data: membership, error: memberError } = await supabaseAdmin
+    .from('org_users')
+    .select('user_id')
+    .eq('org_id', body.org_id)
+    .eq('user_id', userId)
+    .single()
 
   // Verify user has access to this organization (RBAC + legacy compatible)
   const { data: hasOrgAccess, error: accessError } = await supabase
@@ -136,7 +145,7 @@ app.post('/', async (c) => {
 
   // Password is valid! Create or update the compliance record
   // Get the policy hash from the SQL function (matches the validation logic)
-  const { data: policyHash, error: hashError } = await supabase
+  const { data: policyHash, error: hashError } = await supabaseAdmin
     .rpc('get_password_policy_hash', { policy_config: org.password_policy_config })
 
   if (hashError || !policyHash) {
@@ -145,7 +154,7 @@ app.post('/', async (c) => {
   }
 
   // Upsert the compliance record
-  const { error: upsertError } = await supabase
+  const { error: upsertError } = await supabaseAdmin
     .from('user_password_compliance')
     .upsert({
       user_id: userId,

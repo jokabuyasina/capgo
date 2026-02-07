@@ -12,6 +12,19 @@ declare const EdgeRuntime: { waitUntil?: (promise: Promise<any>) => void } | und
 
 export const fetchLimit = 50
 
+/**
+ * Validates that a string contains only safe alphanumeric characters and dashes.
+ * Used to validate API keys before using them in database queries.
+ * @param value The string to validate
+ * @returns true if the string is safe (alphanumeric + dashes only), false otherwise
+ */
+export function isSafeAlphanumeric(value: string): boolean {
+  if (!value || typeof value !== 'string')
+    return false
+  // Allow alphanumeric characters, dashes, and underscores (common in API keys)
+  return /^[a-z0-9_-]+$/i.test(value)
+}
+
 // Regex for Zod validation of an app id
 export const reverseDomainRegex = /^[a-z0-9]+(\.[\w-]+)+$/i
 

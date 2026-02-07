@@ -1,9 +1,9 @@
 import type { Context } from 'hono'
-import type { DevicesByPlatform, PluginBreakdownResult } from '../utils/cloudflare.ts'
+import type { DevicesByPlatform } from '../utils/cloudflare.ts'
 import type { MiddlewareKeyVariables } from '../utils/hono.ts'
 import type { Database } from '../utils/supabase.types.ts'
 import { Hono } from 'hono/tiny'
-import { getPluginBreakdownCF, readActiveAppsCF, readLastMonthDevicesByPlatformCF, readLastMonthDevicesCF, readLastMonthUpdatesCF } from '../utils/cloudflare.ts'
+import { readActiveAppsCF, readLastMonthDevicesByPlatformCF, readLastMonthDevicesCF, readLastMonthUpdatesCF } from '../utils/cloudflare.ts'
 import { BRES, middlewareAPISecret } from '../utils/hono.ts'
 import { cloudlog, cloudlogErr } from '../utils/logging.ts'
 import { logsnag, logsnagInsights } from '../utils/logsnag.ts'
@@ -554,6 +554,7 @@ app.post('/', middlewareAPISecret, async (c) => {
     plan_solo: plans.Solo,
     plan_maker: plans.Maker,
     plan_team: plans.Team,
+    plan_enterprise: plans.Enterprise || 0,
     // Revenue metrics
     mrr: revenue.mrr,
     total_revenue: revenue.total_revenue,
@@ -721,36 +722,6 @@ app.post('/', middlewareAPISecret, async (c) => {
     {
       title: 'Devices Android (30d)',
       value: devices_by_platform.android,
-      icon: '🤖',
-    },
-    {
-      title: 'Total Builds',
-      value: build_stats.total,
-      icon: '🔨',
-    },
-    {
-      title: 'iOS Builds',
-      value: build_stats.ios,
-      icon: '🍏',
-    },
-    {
-      title: 'Android Builds',
-      value: build_stats.android,
-      icon: '🤖',
-    },
-    {
-      title: 'Builds (30d)',
-      value: build_stats.last_month,
-      icon: '🔨',
-    },
-    {
-      title: 'iOS Builds (30d)',
-      value: build_stats.last_month_ios,
-      icon: '🍏',
-    },
-    {
-      title: 'Android Builds (30d)',
-      value: build_stats.last_month_android,
       icon: '🤖',
     },
   ]).catch((e) => {

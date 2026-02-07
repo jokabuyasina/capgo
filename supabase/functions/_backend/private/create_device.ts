@@ -51,7 +51,7 @@ app.post('/', middlewareV2(['all', 'write']), async (c) => {
   })
 
   if (userRight.error) {
-    throw simpleError('internal_auth_error', 'Cannot get user right', { userRight })
+    return simpleError('internal_auth_error', 'Cannot get user right', { userRight })
   }
 
   if (!userRight.data) {

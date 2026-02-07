@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { Database } from '~/types/supabase.types'
-import { computedAsync } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
 import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -67,7 +66,7 @@ function openCreateForm() {
 }
 
 function openEditForm(webhook: Database['public']['Tables']['webhooks']['Row']) {
-  if (!canManageWebhooks.value) {
+  if (!hasPermission.value) {
     toast.error(t('no-permission'))
     return
   }
@@ -102,7 +101,7 @@ async function handleFormSubmit(data: { name: string, url: string, events: strin
 }
 
 async function deleteWebhook(webhook: Database['public']['Tables']['webhooks']['Row']) {
-  if (!canManageWebhooks.value) {
+  if (!hasPermission.value) {
     toast.error(t('no-permission'))
     return
   }
@@ -133,7 +132,7 @@ async function deleteWebhook(webhook: Database['public']['Tables']['webhooks']['
 }
 
 async function testWebhook(webhook: Database['public']['Tables']['webhooks']['Row']) {
-  if (!canManageWebhooks.value) {
+  if (!hasPermission.value) {
     toast.error(t('no-permission'))
     return
   }
@@ -151,7 +150,7 @@ async function testWebhook(webhook: Database['public']['Tables']['webhooks']['Ro
 }
 
 async function toggleWebhook(webhook: Database['public']['Tables']['webhooks']['Row']) {
-  if (!canManageWebhooks.value) {
+  if (!hasPermission.value) {
     toast.error(t('no-permission'))
     return
   }
@@ -277,7 +276,7 @@ function verifyWebhookSignature(req, secret) {
             {{ t('no-webhooks-description') }}
           </p>
           <button
-            v-if="canManageWebhooks"
+            v-if="hasPermission"
             class="px-4 py-2 mt-4 text-sm font-medium text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20"
             @click="openCreateForm"
           >

@@ -116,9 +116,6 @@ async function resolveOrgStripeContext(c: AppContext, orgId: string) {
   if (!rawAuthHeader)
     throw simpleError('not_authorized', 'Not authorized')
 
-  if (!await checkPermission(c, 'org.update_billing', { orgId }))
-    throw simpleError('not_authorized', 'Not authorized')
-
   // Use authenticated client - RLS will enforce access based on JWT
   const supabase = supabaseClient(c, rawAuthHeader)
 

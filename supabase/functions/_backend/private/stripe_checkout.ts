@@ -4,7 +4,7 @@ import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.t
 import { cloudlog } from '../utils/logging.ts'
 import { checkPermission } from '../utils/rbac.ts'
 import { createCheckout } from '../utils/stripe.ts'
-import { supabaseClient } from '../utils/supabase.ts'
+import { hasOrgRight, supabaseClient } from '../utils/supabase.ts'
 import { getEnv } from '../utils/utils.ts'
 
 interface CheckoutData {
@@ -30,7 +30,7 @@ app.post('/', middlewareAuth, async (c) => {
 
   const authorization = c.get('authorization')
   if (!authorization)
-    throw simpleError('not_authorized', 'Not authorized')
+    return simpleError('not_authorize', 'Not authorize')
 
   // Use authenticated client - RLS will enforce access based on JWT
   const supabase = supabaseClient(c, authorization)
@@ -38,7 +38,7 @@ app.post('/', middlewareAuth, async (c) => {
   // Get current user ID from JWT
   const { data: auth, error } = await supabase.auth.getUser()
   if (error || !auth?.user?.id)
-    throw simpleError('not_authorized', 'Not authorized')
+    return simpleError('not_authorize', 'Not authorize')
 
   cloudlog({ requestId: c.get('requestId'), message: 'auth', auth: auth.user.id })
   const { data: org, error: dbError } = await supabase

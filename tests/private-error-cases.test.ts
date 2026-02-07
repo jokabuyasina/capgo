@@ -89,7 +89,7 @@ describe('[POST] /private/create_device - Error Cases', () => {
 
   it('should return 404 when app not found', async () => {
     // Use testOrgId where user has super_admin rights to properly test app not found
-    const response = await fetch(getEndpointUrl('/private/create_device'), {
+    const response = await fetch(`${BASE_URL}/private/create_device`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -434,9 +434,9 @@ describe('[POST] /private/accept_invitation - Error Cases', () => {
 })
 
 describe('[POST] /private/invite_new_user_to_org - Error Cases', () => {
-  it('should return 401 when JWT is invalid before captcha validation', async () => {
-    // Auth validation runs before captcha verification.
-    const response = await fetch(getEndpointUrl('/private/invite_new_user_to_org'), {
+  it('should return 400 when captcha secret key is not set', async () => {
+    // Captcha validation runs before invite logic, so without CAPTCHA_SECRET_KEY, it fails early
+    const response = await fetch(`${BASE_URL}/private/invite_new_user_to_org`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -451,12 +451,12 @@ describe('[POST] /private/invite_new_user_to_org - Error Cases', () => {
 
     expect(response.status).toBe(401)
     const data = await response.json() as { error: string }
-    expect(data.error).toBe('invalid_jwt')
+    expect(data.error).toBe('captcha_secret_key_not_set')
   })
 
-  it('should return 401 when JWT is invalid for nonexistent org', async () => {
-    // Auth validation runs before org lookup or captcha verification.
-    const response = await fetch(getEndpointUrl('/private/invite_new_user_to_org'), {
+  it('should return 400 when captcha secret not set for nonexistent org', async () => {
+    // Even with invalid org, captcha validation runs first
+    const response = await fetch(`${BASE_URL}/private/invite_new_user_to_org`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -471,7 +471,7 @@ describe('[POST] /private/invite_new_user_to_org - Error Cases', () => {
 
     expect(response.status).toBe(401)
     const data = await response.json() as { error: string }
-    expect(data.error).toBe('invalid_jwt')
+    expect(data.error).toBe('captcha_secret_key_not_set')
   })
 })
 
