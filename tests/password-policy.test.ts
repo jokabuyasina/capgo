@@ -32,13 +32,12 @@ beforeAll(async () => {
     throw error
 
   // Add user as member of the org
-  const { error: memberError } = await getSupabaseClient().from('org_users').upsert({
+    // Add user as member of the org. Use upsert to tolerate parallel test runs or trigger inserts
+    const { error: memberError } = await getSupabaseClient().from('org_users').upsert({
     org_id: ORG_ID,
     user_id: USER_ID,
     user_right: 'super_admin',
-  }, {
-    onConflict: 'user_id,org_id',
-  })
+    }, { onConflict: 'user_id,org_id', ignoreDuplicates: true })
   if (memberError)
     throw memberError
 })

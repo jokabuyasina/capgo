@@ -34,8 +34,8 @@ beforeAll(async () => {
   if (!orgData || orgData.length === 0)
     throw new Error(`Org insert returned no data for ORG_ID=${ORG_ID}`)
 
-  // Note: The org trigger already inserts the created_by user into org_users as super_admin
-  // Use upsert with ignoreDuplicates to handle the case where the trigger already created the entry
+  // Note: The org trigger may already insert the created_by user into org_users as super_admin.
+  // Use upsert to avoid unique-constraint errors when the trigger or parallel tests create the row.
   const { error: orgUserError } = await getSupabaseClient().from('org_users').upsert({
     org_id: ORG_ID,
     user_id: USER_ID,
