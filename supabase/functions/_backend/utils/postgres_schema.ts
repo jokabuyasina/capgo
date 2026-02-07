@@ -84,80 +84,10 @@ export const org_users = pgTable('org_users', {
   user_right: userMinRightPgEnum('user_right'),
 })
 
-// SSO SAML Authentication Tables
+// SSO SAML Authentication Tables (single clean definitions)
 export const org_saml_connections = pgTable('org_saml_connections', {
   id: uuid('id').primaryKey().defaultRandom(),
   org_id: uuid('org_id').notNull().references(() => orgs.id),
-  sso_provider_id: uuid('sso_provider_id').notNull().unique(),
-  provider_name: text('provider_name').notNull(),
-  metadata_url: text('metadata_url'),
-  metadata_xml: text('metadata_xml'),
-  entity_id: text('entity_id').notNull(),
-  current_certificate: text('current_certificate'),
-  certificate_expires_at: timestamp('certificate_expires_at'),
-  certificate_last_checked: timestamp('certificate_last_checked').defaultNow(),
-  enabled: boolean('enabled').notNull().default(false),
-  verified: boolean('verified').notNull().default(false),
-  auto_join_enabled: boolean('auto_join_enabled').notNull().default(false),
-  attribute_mapping: jsonb('attribute_mapping').default('{}'),
-  created_at: timestamp('created_at').notNull().defaultNow(),
-  updated_at: timestamp('updated_at').notNull().defaultNow(),
-  created_by: uuid('created_by'),
-})
-
-export const saml_domain_mappings = pgTable('saml_domain_mappings', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  domain: text('domain').notNull(),
-  org_id: uuid('org_id').notNull().references(() => orgs.id),
-  sso_connection_id: uuid('sso_connection_id').notNull().references(() => org_saml_connections.id),
-  priority: integer('priority').notNull().default(0),
-  verified: boolean('verified').notNull().default(true),
-  verification_code: text('verification_code'),
-  verified_at: timestamp('verified_at'),
-  created_at: timestamp('created_at').notNull().defaultNow(),
-})
-
-export const sso_audit_logs = pgTable('sso_audit_logs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  timestamp: timestamp('timestamp').notNull().defaultNow(),
-  user_id: uuid('user_id'),
-  email: text('email'),
-  event_type: text('event_type').notNull(),
-  org_id: uuid('org_id'),
-  sso_provider_id: uuid('sso_provider_id'),
-  sso_connection_id: uuid('sso_connection_id').references(() => org_saml_connections.id),
-  ip_address: text('ip_address'),
-  user_agent: text('user_agent'),
-  country: text('country'),
-  saml_assertion_id: text('saml_assertion_id'),
-  saml_session_index: text('saml_session_index'),
-  error_code: text('error_code'),
-  error_message: text('error_message'),
-  metadata: jsonb('metadata').default('{}'),
-})
-
-export const sso_audit_logs = pgTable('sso_audit_logs', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  timestamp: timestamp('timestamp', { withTimezone: true }).notNull().defaultNow(),
-  user_id: uuid('user_id'),
-  email: text('email'),
-  event_type: text('event_type').notNull(),
-  org_id: uuid('org_id'),
-  sso_provider_id: uuid('sso_provider_id'),
-  sso_connection_id: uuid('sso_connection_id'),
-  ip_address: text('ip_address'),
-  user_agent: text('user_agent'),
-  country: text('country'),
-  saml_assertion_id: text('saml_assertion_id'),
-  saml_session_index: text('saml_session_index'),
-  error_code: text('error_code'),
-  error_message: text('error_message'),
-  metadata: text('metadata'),
-})
-
-export const org_saml_connections = pgTable('org_saml_connections', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  org_id: uuid('org_id').notNull(),
   sso_provider_id: uuid('sso_provider_id').notNull().unique(),
   provider_name: text('provider_name').notNull(),
   metadata_url: text('metadata_url'),
@@ -169,7 +99,7 @@ export const org_saml_connections = pgTable('org_saml_connections', {
   enabled: boolean('enabled').notNull().default(false),
   verified: boolean('verified').notNull().default(false),
   auto_join_enabled: boolean('auto_join_enabled').notNull().default(false),
-  attribute_mapping: text('attribute_mapping').default('{}'),
+  attribute_mapping: jsonb('attribute_mapping').default('{}'),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   created_by: uuid('created_by'),
@@ -178,8 +108,8 @@ export const org_saml_connections = pgTable('org_saml_connections', {
 export const saml_domain_mappings = pgTable('saml_domain_mappings', {
   id: uuid('id').primaryKey().defaultRandom(),
   domain: text('domain').notNull(),
-  org_id: uuid('org_id').notNull(),
-  sso_connection_id: uuid('sso_connection_id').notNull(),
+  org_id: uuid('org_id').notNull().references(() => orgs.id),
+  sso_connection_id: uuid('sso_connection_id').notNull().references(() => org_saml_connections.id),
   priority: integer('priority').notNull().default(0),
   verified: boolean('verified').notNull().default(true),
   verification_code: text('verification_code'),
@@ -195,7 +125,7 @@ export const sso_audit_logs = pgTable('sso_audit_logs', {
   event_type: text('event_type').notNull(),
   org_id: uuid('org_id'),
   sso_provider_id: uuid('sso_provider_id'),
-  sso_connection_id: uuid('sso_connection_id'),
+  sso_connection_id: uuid('sso_connection_id').references(() => org_saml_connections.id),
   ip_address: text('ip_address'),
   user_agent: text('user_agent'),
   country: text('country'),
@@ -205,5 +135,3 @@ export const sso_audit_logs = pgTable('sso_audit_logs', {
   error_message: text('error_message'),
   metadata: text('metadata'),
 })
-=======
->>>>>>> 198334e8d (fix: prepare sso updates)
