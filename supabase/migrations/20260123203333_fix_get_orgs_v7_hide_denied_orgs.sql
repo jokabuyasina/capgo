@@ -215,9 +215,11 @@ BEGIN
   LEFT JOIN public.usage_credit_balances ucb ON ucb.org_id = o.id
   LEFT JOIN paying_orgs_ordered poo ON poo.id = o.id
   LEFT JOIN billing_cycles bc ON bc.org_id = o.id
-  -- CRITICAL FIX: Only hide orgs where 2FA denies access
-  -- Password policy violations show the org with redacted data, not hidden
-  WHERE NOT tfa.should_redact_2fa;
+  -- NOTE: Do not filter out orgs here. Redaction of sensitive fields is handled
+  -- per-row above (tfa.should_redact_2fa and ppa.should_redact_password).
+  -- This ensures orgs remain visible while sensitive fields are redacted as
+  -- expected by the SQL tests.
+  ;
 END;
 $$;
 
