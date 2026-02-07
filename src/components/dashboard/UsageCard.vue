@@ -99,13 +99,20 @@ const effectiveData = computed(() => isDemoMode.value ? demoData.value : props.d
 const effectiveDataByApp = computed(() => isDemoMode.value ? demoDataByApp.value : props.dataByApp)
 const effectiveAppNames = computed(() => isDemoMode.value ? DEMO_APP_NAMES : props.appNames)
 
-const total = computed(() => {
-  const dataArray = effectiveData.value
-  const hasData = dataArray.some(val => val !== undefined)
-  const sumValues = (values: number[]) => values.reduce((acc, val) => (typeof val === 'number' ? acc + val : acc), 0)
+const hasChartData = computed(() => {
+  // Chart has data if there's any numeric value present or demo/app breakdown exists
+  const dataArray = effectiveData.value as any[]
+  const hasNumberData = Array.isArray(dataArray) && dataArray.some(val => typeof val === 'number' && !isNaN(val) && val !== 0)
+  const hasAppBreakdown = effectiveDataByApp.value && Object.keys(effectiveDataByApp.value).length > 0
+  return hasNumberData || hasAppBreakdown
+})
 
-  if (hasData) {
-    return sumValues(arr)
+const total = computed(() => {
+  const dataArray = effectiveData.value as any[]
+  const sumValues = (values: any[]) => Array.isArray(values) ? values.reduce((acc, val) => (typeof val === 'number' ? acc + val : acc), 0) : 0
+
+  if (Array.isArray(dataArray) && dataArray.some(val => typeof val === 'number')) {
+    return sumValues(dataArray)
   }
 
   if (effectiveDataByApp.value && Object.keys(effectiveDataByApp.value).length > 0) {
@@ -122,7 +129,7 @@ const lastDayEvolution = computed(() => {
     return calculateDemoEvolution(effectiveData.value)
   }
 
-  const arr = props.data as number[]
+  const arr = effectiveData.value as number[]
   const arrWithoutUndefined = arr.filter((val: any) => val !== undefined)
 
   if (arrWithoutUndefined.length < 2) {
