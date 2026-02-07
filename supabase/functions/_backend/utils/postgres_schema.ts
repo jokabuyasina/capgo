@@ -34,7 +34,6 @@ export const apps = pgTable('apps', {
 export const app_versions = pgTable('app_versions', {
   id: bigint('id', { mode: 'number' }).primaryKey().notNull(),
   owner_org: uuid('owner_org').notNull(),
-  owner_org: uuid('owner_org').notNull(),
 })
 
 export const orgs = pgTable('orgs', {
