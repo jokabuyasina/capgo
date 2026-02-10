@@ -7,7 +7,7 @@ import { honoFactory, quickError } from './hono.ts'
 import { cloudlog } from './logging.ts'
 import { closeClient, getDrizzleClient, getPgClient, logPgError } from './pg.ts'
 import * as schema from './postgres_schema.ts'
-import { clearFailedAuth, isAPIKeyRateLimited, isIPRateLimited, recordAPIKeyUsage, recordFailedAuth } from './rate_limit.ts'
+import { recordFailedAuth } from './rate_limit.ts'
 import { checkKey, checkKeyById, supabaseAdmin, supabaseClient } from './supabase.ts'
 import { isSafeAlphanumeric } from './utils.ts'
 
@@ -183,8 +183,7 @@ async function foundAPIKey(c: Context, capgkeyString: string, rights: Database['
       return quickError(401, 'invalid_subkey', 'Invalid subkey')
     }
     if (subkey && subkey.user_id !== apikey.user_id) {
-      // Don't log full apikey/subkey objects to avoid sensitive data leakage
-      cloudlog({ requestId: c.get('requestId'), message: 'Subkey user_id does not match apikey user_id' })
+      cloudlog({ requestId: c.get('requestId'), message: 'Subkey user_id does not match apikey user_id', subkey, apikey })
       return quickError(401, 'invalid_subkey', 'Invalid subkey')
     }
     if (subkey?.limited_to_apps && subkey?.limited_to_apps.length === 0 && subkey?.limited_to_orgs && subkey?.limited_to_orgs.length === 0) {

@@ -33,6 +33,8 @@ when working with code in this repository.
 - `./scripts/start-cloudflare-workers.sh` - Start local Cloudflare Workers for
   testing
 
+Note: Cloudflare test suite is currently unstable and may not pass reliably.
+
 See [CLOUDFLARE_TESTING.md](CLOUDFLARE_TESTING.md) for detailed information on
 testing against Cloudflare Workers.
 
@@ -78,6 +80,14 @@ testing against Cloudflare Workers.
   - `public/` - Public API endpoints (app, bundle, device management)
   - `triggers/` - Database triggers and CRON functions
   - `utils/` - Shared utilities and database schemas
+
+### AI Workflow Notes
+
+- For understanding the **current DB schema**, prefer
+  `supabase/schemas/prod.sql` (schema dump) instead of scanning all migrations.
+- For **schema changes**, always edit or add files under
+  `supabase/migrations/` and treat `supabase/schemas/prod.sql` as read-only
+  reference.
 
 ### HTTP Response Conventions
 
@@ -244,183 +254,6 @@ Then in your test file, use ONLY these dedicated resources for modifications.
   (backend) instead of `getUser()` unless you explicitly need the full user
   record from the Auth API.
 
-### PostgreSQL Function Security
-
-**ALWAYS set an empty search path in every PostgreSQL function.**
-
-Every function must set `search_path = ''` and use fully qualified names for all references:
-
-```sql
--- CORRECT: Empty search_path with fully qualified names
-CREATE OR REPLACE FUNCTION "public"."my_function"()
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-BEGIN
-    SELECT * FROM "public"."my_table";
-    -- All table/type references must be fully qualified
-END;
-$$;
-
--- WRONG: Missing search_path - vulnerable to attacks
-CREATE OR REPLACE FUNCTION public.my_function()
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    SELECT * FROM my_table;
-END;
-$$;
-```
-
-### RLS Policy Optimization Rules
-
-**Rule 1: One policy per table per operation.**
-
-Never create duplicate policies for the same operation on a table. Multiple policies on the same operation create OR conditions that hurt query performance. Merge all conditions into a single policy:
-
-```sql
--- WRONG: Multiple SELECT policies on the same table
-CREATE POLICY "policy_1" ON public.my_table FOR SELECT USING (condition_1);
-CREATE POLICY "policy_2" ON public.my_table FOR SELECT USING (condition_2);
-
--- CORRECT: Single merged policy
-CREATE POLICY "Allow select on my_table" ON public.my_table
-FOR SELECT USING (condition_1 OR condition_2);
-```
-
-**Rule 2: Call `auth.uid()` only once using a subquery.**
-
-The `auth.uid()` function should never be called multiple times in a policy. Use a `SELECT *` subquery pattern to call it once and reference the result:
-
-```sql
--- WRONG: Multiple auth.uid() calls - poor performance
-CREATE POLICY "my_policy" ON public.my_table
-FOR SELECT USING (
-    user_id = auth.uid()
-    OR owner_id = auth.uid()
-    OR created_by = auth.uid()
-);
-
--- CORRECT: Single auth.uid() call with subquery
-CREATE POLICY "my_policy" ON public.my_table
-FOR SELECT USING (
-    (SELECT * FROM (SELECT auth.uid() AS uid) AS auth_check
-     WHERE user_id = auth_check.uid
-        OR owner_id = auth_check.uid
-        OR created_by = auth_check.uid)
-);
-
--- ALSO CORRECT: Using a CTE-style approach in the check
-CREATE POLICY "my_policy" ON public.my_table
-FOR SELECT USING (
-    EXISTS (
-        SELECT 1
-        FROM (SELECT auth.uid() AS uid) AS auth_user
-        WHERE my_table.user_id = auth_user.uid
-           OR my_table.owner_id = auth_user.uid
-    )
-);
-```
-
-## Database RLS Policies
-
-### Identity Functions for RLS - CRITICAL RULES
-
-**NEVER use `get_identity()` directly in RLS policies.**
-
-**ALWAYS use `get_identity_org_appid()` when app_id exists on the table.**
-
-```sql
-public.get_identity_org_appid(
-    '{read,upload,write,all}'::public.key_mode[],
-    owner_org,  -- or org_id
-    app_id
-)
-```
-
-**`get_identity_org_allowed()` is an ABSOLUTE LAST RESORT.** Only use it when:
-
-- The table genuinely has NO app_id column
-- There is NO way to join to get an app_id
-- You have exhausted all other options
-
-If you find yourself reaching for `get_identity_org_allowed()`, STOP and ask:
-"Is there ANY way to get an app_id here?" If yes, use `get_identity_org_appid()`.
-
-### RLS Pattern Examples
-
-```sql
--- CORRECT: Table has app_id - use get_identity_org_appid
-CREATE POLICY "Allow org members to select build_requests"
-ON public.build_requests
-FOR SELECT
-TO authenticated, anon
-USING (
-    public.check_min_rights(
-        'read'::public.user_min_right,
-        public.get_identity_org_appid(
-            '{read,upload,write,all}'::public.key_mode[],
-            owner_org,
-            app_id
-        ),
-        owner_org,
-        app_id,
-        NULL::BIGINT
-    )
-);
-
--- CORRECT: Table has no app_id but can JOIN to get it
-CREATE POLICY "Allow org members to select daily_build_time"
-ON public.daily_build_time
-FOR SELECT
-TO authenticated, anon
-USING (
-    EXISTS (
-        SELECT 1 FROM public.apps
-        WHERE apps.app_id = daily_build_time.app_id
-        AND public.check_min_rights(
-            'read'::public.user_min_right,
-            public.get_identity_org_appid(
-                '{read,upload,write,all}'::public.key_mode[],
-                apps.owner_org,
-                apps.app_id
-            ),
-            apps.owner_org,
-            apps.app_id,
-            NULL::BIGINT
-        )
-    )
-);
-
--- LAST RESORT: Table has NO app_id and NO way to get one (e.g., build_logs)
-CREATE POLICY "Allow org members to select build_logs"
-ON public.build_logs
-FOR SELECT
-TO authenticated, anon
-USING (
-    public.check_min_rights(
-        'read'::public.user_min_right,
-        public.get_identity_org_allowed(
-            '{read,upload,write,all}'::public.key_mode[],
-            org_id
-        ),
-        org_id,
-        NULL::CHARACTER VARYING,
-        NULL::BIGINT
-    )
-);
-```
-
-Key points:
-
-- Use both `authenticated` and `anon` roles (anon enables API key auth)
-- Pass app_id to BOTH `get_identity_org_appid()` AND `check_min_rights()`
-- Reference apps, channels, app_versions tables for more examples
-
 ## Frontend Style
 
 - The web client is built with Vue.js and Tailwind CSS; lean on utility classes
@@ -532,6 +365,55 @@ transparent about AI-generated content. ALWAYS mark every section with
 
 Generated with AI
 ```
+
+## API and Plugin Backward Compatibility
+
+**CRITICAL: All changes to public APIs and plugin interfaces MUST be backward compatible.**
+
+Customers take time to update their apps and plugins. Breaking changes cause production issues for users who haven't updated yet. Follow these rules:
+
+### Backend API Changes
+
+- **New fields**: Can be added freely - old clients will ignore them
+- **Existing fields**: Never remove or change the type/meaning
+- **New error codes**: Fine to add, but don't remove existing ones
+- **Response format**: Must remain compatible with older plugin versions
+
+### Plugin Version Detection
+
+When behavior must differ between plugin versions, use version detection:
+
+```typescript
+const pluginVersion = body.plugin_version || '0.0.0'
+let isNewVersion = false
+try {
+  const parsed = parse(pluginVersion)
+  isNewVersion = !isDeprecatedPluginVersion(parsed, MIN_V5, MIN_V6, MIN_V7, MIN_V8)
+} catch (error) {
+  // If version parsing fails, assume old version for safety
+}
+
+if (isNewVersion) {
+  // New behavior for updated plugins
+} else {
+  // Legacy behavior for old plugins
+}
+```
+
+### Examples of Backward Compatible Changes
+
+- **Adding a new optional response field**: Old plugins ignore it, new plugins use it
+- **Changing error to success with new flag**: Return success with `unset: true` instead of error - old plugins see success, new plugins handle the flag
+- **New endpoint**: Doesn't affect existing clients
+
+### Examples of Breaking Changes (AVOID)
+
+- Removing a response field that old plugins depend on
+- Changing the meaning of an existing field
+- Returning different HTTP status codes for the same scenario
+- Removing support for old request formats
+
+**When in doubt, support both old and new behavior based on plugin version detection.**
 
 ## Deployment
 

@@ -1290,6 +1290,74 @@ export type Database = {
           },
         ]
       }
+      org_saml_connections: {
+        Row: {
+          attribute_mapping: Json | null
+          auto_join_enabled: boolean
+          certificate_expires_at: string | null
+          certificate_last_checked: string | null
+          created_at: string
+          created_by: string | null
+          current_certificate: string | null
+          enabled: boolean
+          entity_id: string
+          id: string
+          metadata_url: string | null
+          metadata_xml: string | null
+          org_id: string
+          provider_name: string
+          sso_provider_id: string
+          updated_at: string
+          verified: boolean
+        }
+        Insert: {
+          attribute_mapping?: Json | null
+          auto_join_enabled?: boolean
+          certificate_expires_at?: string | null
+          certificate_last_checked?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_certificate?: string | null
+          enabled?: boolean
+          entity_id: string
+          id?: string
+          metadata_url?: string | null
+          metadata_xml?: string | null
+          org_id: string
+          provider_name: string
+          sso_provider_id: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Update: {
+          attribute_mapping?: Json | null
+          auto_join_enabled?: boolean
+          certificate_expires_at?: string | null
+          certificate_last_checked?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_certificate?: string | null
+          enabled?: boolean
+          entity_id?: string
+          id?: string
+          metadata_url?: string | null
+          metadata_xml?: string | null
+          org_id?: string
+          provider_name?: string
+          sso_provider_id?: string
+          updated_at?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_saml_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_users: {
         Row: {
           app_id: string | null
@@ -1480,6 +1548,330 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      rbac_settings: {
+        Row: {
+          created_at: string
+          id: number
+          updated_at: string
+          use_new_rbac: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          updated_at?: string
+          use_new_rbac?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          updated_at?: string
+          use_new_rbac?: boolean
+        }
+        Relationships: []
+      }
+      role_bindings: {
+        Row: {
+          app_id: string | null
+          bundle_id: number | null
+          channel_id: string | null
+          expires_at: string | null
+          granted_at: string
+          granted_by: string
+          id: string
+          is_direct: boolean
+          org_id: string | null
+          principal_id: string
+          principal_type: string
+          reason: string | null
+          role_id: string
+          scope_type: string
+        }
+        Insert: {
+          app_id?: string | null
+          bundle_id?: number | null
+          channel_id?: string | null
+          expires_at?: string | null
+          granted_at?: string
+          granted_by: string
+          id?: string
+          is_direct?: boolean
+          org_id?: string | null
+          principal_id: string
+          principal_type: string
+          reason?: string | null
+          role_id: string
+          scope_type: string
+        }
+        Update: {
+          app_id?: string | null
+          bundle_id?: number | null
+          channel_id?: string | null
+          expires_at?: string | null
+          granted_at?: string
+          granted_by?: string
+          id?: string
+          is_direct?: boolean
+          org_id?: string | null
+          principal_id?: string
+          principal_type?: string
+          reason?: string | null
+          role_id?: string
+          scope_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_bindings_app_id_fkey"
+            columns: ["app_id"]
+            isOneToOne: false
+            referencedRelation: "apps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_bindings_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "app_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_bindings_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["rbac_id"]
+          },
+          {
+            foreignKeyName: "role_bindings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_bindings_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_hierarchy: {
+        Row: {
+          child_role_id: string
+          parent_role_id: string
+        }
+        Insert: {
+          child_role_id: string
+          parent_role_id: string
+        }
+        Update: {
+          child_role_id?: string
+          parent_role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_hierarchy_child_role_id_fkey"
+            columns: ["child_role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_hierarchy_parent_role_id_fkey"
+            columns: ["parent_role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      role_permissions: {
+        Row: {
+          permission_id: string
+          role_id: string
+        }
+        Insert: {
+          permission_id: string
+          role_id: string
+        }
+        Update: {
+          permission_id?: string
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "role_permissions_permission_id_fkey"
+            columns: ["permission_id"]
+            isOneToOne: false
+            referencedRelation: "permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_assignable: boolean
+          name: string
+          priority_rank: number
+          scope_type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_assignable?: boolean
+          name: string
+          priority_rank?: number
+          scope_type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_assignable?: boolean
+          name?: string
+          priority_rank?: number
+          scope_type?: string
+        }
+        Relationships: []
+      }
+      saml_domain_mappings: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          org_id: string
+          priority: number
+          sso_connection_id: string
+          verification_code: string | null
+          verified: boolean
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          org_id: string
+          priority?: number
+          sso_connection_id: string
+          verification_code?: string | null
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          org_id?: string
+          priority?: number
+          sso_connection_id?: string
+          verification_code?: string | null
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saml_domain_mappings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saml_domain_mappings_sso_connection_id_fkey"
+            columns: ["sso_connection_id"]
+            isOneToOne: false
+            referencedRelation: "org_saml_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sso_audit_logs: {
+        Row: {
+          country: string | null
+          email: string | null
+          error_code: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          ip_address: unknown
+          metadata: Json | null
+          org_id: string | null
+          saml_assertion_id: string | null
+          saml_session_index: string | null
+          sso_connection_id: string | null
+          sso_provider_id: string | null
+          timestamp: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          country?: string | null
+          email?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          org_id?: string | null
+          saml_assertion_id?: string | null
+          saml_session_index?: string | null
+          sso_connection_id?: string | null
+          sso_provider_id?: string | null
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          country?: string | null
+          email?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          org_id?: string | null
+          saml_assertion_id?: string | null
+          saml_session_index?: string | null
+          sso_connection_id?: string | null
+          sso_provider_id?: string | null
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sso_audit_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sso_audit_logs_sso_connection_id_fkey"
+            columns: ["sso_connection_id"]
+            isOneToOne: false
+            referencedRelation: "org_saml_connections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stats: {
         Row: {
@@ -2089,159 +2481,6 @@ export type Database = {
           },
         ]
       }
-      org_saml_connections: {
-        Row: {
-          id: string
-          org_id: string
-          sso_provider_id: string
-          provider_name: string
-          metadata_url: string | null
-          metadata_xml: string | null
-          entity_id: string
-          current_certificate: string | null
-          certificate_expires_at: string | null
-          certificate_last_checked: string | null
-          enabled: boolean
-          verified: boolean
-          auto_join_enabled: boolean
-          attribute_mapping: Json
-          created_at: string
-          updated_at: string
-          created_by: string | null
-        }
-        Insert: {
-          id?: string
-          org_id: string
-          sso_provider_id: string
-          provider_name: string
-          metadata_url?: string | null
-          metadata_xml?: string | null
-          entity_id: string
-          current_certificate?: string | null
-          certificate_expires_at?: string | null
-          certificate_last_checked?: string | null
-          enabled?: boolean
-          verified?: boolean
-          auto_join_enabled?: boolean
-          attribute_mapping?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-        }
-        Update: {
-          id?: string
-          org_id?: string
-          sso_provider_id?: string
-          provider_name?: string
-          metadata_url?: string | null
-          metadata_xml?: string | null
-          entity_id?: string
-          current_certificate?: string | null
-          certificate_expires_at?: string | null
-          certificate_last_checked?: string | null
-          enabled?: boolean
-          verified?: boolean
-          auto_join_enabled?: boolean
-          attribute_mapping?: Json
-          created_at?: string
-          updated_at?: string
-          created_by?: string | null
-        }
-        Relationships: []
-      }
-      saml_domain_mappings: {
-        Row: {
-          id: string
-          domain: string
-          org_id: string
-          sso_connection_id: string
-          priority: number
-          verified: boolean
-          verification_code: string | null
-          verified_at: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          domain: string
-          org_id: string
-          sso_connection_id: string
-          priority?: number
-          verified?: boolean
-          verification_code?: string | null
-          verified_at?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          domain?: string
-          org_id?: string
-          sso_connection_id?: string
-          priority?: number
-          verified?: boolean
-          verification_code?: string | null
-          verified_at?: string | null
-          created_at?: string
-        }
-        Relationships: []
-      }
-      sso_audit_logs: {
-        Row: {
-          id: string
-          timestamp: string
-          user_id: string | null
-          email: string | null
-          event_type: string
-          org_id: string | null
-          sso_provider_id: string | null
-          sso_connection_id: string | null
-          ip_address: string | null
-          user_agent: string | null
-          country: string | null
-          saml_assertion_id: string | null
-          saml_session_index: string | null
-          error_code: string | null
-          error_message: string | null
-          metadata: Json
-        }
-        Insert: {
-          id?: string
-          timestamp?: string
-          user_id?: string | null
-          email?: string | null
-          event_type: string
-          org_id?: string | null
-          sso_provider_id?: string | null
-          sso_connection_id?: string | null
-          ip_address?: string | null
-          user_agent?: string | null
-          country?: string | null
-          saml_assertion_id?: string | null
-          saml_session_index?: string | null
-          error_code?: string | null
-          error_message?: string | null
-          metadata?: Json
-        }
-        Update: {
-          id?: string
-          timestamp?: string
-          user_id?: string | null
-          email?: string | null
-          event_type?: string
-          org_id?: string | null
-          sso_provider_id?: string | null
-          sso_connection_id?: string | null
-          ip_address?: string | null
-          user_agent?: string | null
-          country?: string | null
-          saml_assertion_id?: string | null
-          saml_session_index?: string | null
-          error_code?: string | null
-          error_message?: string | null
-          metadata?: Json
-        }
-        Relationships: []
-      }
       webhooks: {
         Row: {
           created_at: string
@@ -2360,6 +2599,17 @@ export type Database = {
           overage_unpaid: number
         }[]
       }
+      auto_enroll_sso_user: {
+        Args: { p_email: string; p_sso_provider_id: string; p_user_id: string }
+        Returns: {
+          enrolled_org_id: string
+          org_name: string
+        }[]
+      }
+      auto_join_user_to_orgs_by_email: {
+        Args: { p_email: string; p_sso_provider_id?: string; p_user_id: string }
+        Returns: undefined
+      }
       calculate_credit_cost: {
         Args: {
           p_metric: Database["public"]["Enums"]["credit_metric_type"]
@@ -2415,11 +2665,17 @@ export type Database = {
           user_id: string
         }[]
       }
+      check_org_sso_configured: { Args: { p_org_id: string }; Returns: boolean }
       check_revert_to_builtin_version: {
         Args: { appid: string }
         Returns: number
       }
+      check_sso_required_for_domain: {
+        Args: { p_email: string }
+        Returns: boolean
+      }
       cleanup_expired_apikeys: { Args: never; Returns: undefined }
+      cleanup_expired_demo_apps: { Args: never; Returns: undefined }
       cleanup_frequent_job_details: { Args: never; Returns: undefined }
       cleanup_job_run_details_7days: { Args: never; Returns: undefined }
       cleanup_old_audit_logs: { Args: never; Returns: undefined }
@@ -2819,6 +3075,10 @@ export type Database = {
               total_percent: number
             }[]
           }
+      get_sso_provider_id_for_user: {
+        Args: { p_user_id: string }
+        Returns: string
+      }
       get_total_app_storage_size_orgs: {
         Args: { app_id: string; org_id: string }
         Returns: number
@@ -3015,6 +3275,30 @@ export type Database = {
       is_paying_org: { Args: { orgid: string }; Returns: boolean }
       is_storage_exceeded_by_org: { Args: { org_id: string }; Returns: boolean }
       is_trial_org: { Args: { orgid: string }; Returns: number }
+      is_user_app_admin: {
+        Args: { p_app_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_user_org_admin: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      lookup_sso_provider_by_domain: {
+        Args: { p_email: string }
+        Returns: {
+          enabled: boolean
+          entity_id: string
+          metadata_url: string
+          org_id: string
+          org_name: string
+          provider_id: string
+          provider_name: string
+        }[]
+      }
+      lookup_sso_provider_for_email: {
+        Args: { p_email: string }
+        Returns: string
+      }
       mass_edit_queue_messages_cf_ids: {
         Args: {
           updates: Database["public"]["CompositeTypes"]["message_update"][]
@@ -3030,6 +3314,7 @@ export type Database = {
         Returns: string
       }
       one_month_ahead: { Args: never; Returns: string }
+      org_has_sso_configured: { Args: { p_org_id: string }; Returns: boolean }
       parse_cron_field: {
         Args: { current_val: number; field: string; max_val: number }
         Returns: number
@@ -3205,34 +3490,6 @@ export type Database = {
       }
       verify_api_key_hash: {
         Args: { plain_key: string; stored_hash: string }
-        Returns: boolean
-      }
-      auto_enroll_sso_user: {
-        Args: { p_user_id: string; p_email: string; p_sso_provider_id: string }
-        Returns: void
-      }
-      auto_join_user_to_orgs_by_email: {
-        Args: { p_user_id: string; p_email: string; p_sso_provider_id?: string | null }
-        Returns: void
-      }
-      lookup_sso_provider_by_domain: {
-        Args: { p_email: string }
-        Returns: {
-          provider_id: string
-          entity_id: string
-          org_id: string
-          org_name: string
-          provider_name: string
-          metadata_url: string | null
-          enabled: boolean
-        }[]
-      }
-      lookup_sso_provider_for_email: {
-        Args: { p_email: string }
-        Returns: string
-      }
-      check_org_sso_configured: {
-        Args: { p_org_id: string }
         Returns: boolean
       }
       verify_mfa: { Args: never; Returns: boolean }

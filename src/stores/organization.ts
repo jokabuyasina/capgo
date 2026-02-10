@@ -20,9 +20,8 @@ export interface PasswordPolicyConfig {
 // Extended organization type with password policy and 2FA fields (from get_orgs_v7)
 // Note: Using get_orgs_v7 return type with explicit JSON parsing for password_policy_config
 type GetOrgsV7Function = Database['public']['Functions']['get_orgs_v7']
-type RawOrganization = ArrayElement<
-  GetOrgsV7Function extends { Returns: infer R } ? R : never
->
+type GetOrgsV7Returns = GetOrgsV7Function extends { Returns: infer R } ? R : never
+type RawOrganization = ArrayElement<GetOrgsV7Returns>
 export type Organization = Omit<RawOrganization, 'password_policy_config'> & {
   password_policy_config: PasswordPolicyConfig | null
 }
@@ -441,8 +440,8 @@ export const useOrganizationStore = defineStore('organization', () => {
 
     return {
       totalUsers: data.length,
-      compliantUsers: data.filter((u: PasswordPolicyCheckResult) => u.password_policy_compliant),
-      nonCompliantUsers: data.filter((u: PasswordPolicyCheckResult) => !u.password_policy_compliant),
+      compliantUsers: data.filter((u: any) => u.password_policy_compliant),
+      nonCompliantUsers: data.filter((u: any) => !u.password_policy_compliant),
     }
   }
 

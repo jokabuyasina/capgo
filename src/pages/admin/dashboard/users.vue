@@ -9,11 +9,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AdminFilterBar from '~/components/admin/AdminFilterBar.vue'
-import AdminFunnelChart from '~/components/admin/AdminFunnelChart.vue'
 import AdminMultiLineChart from '~/components/admin/AdminMultiLineChart.vue'
 import ChartCard from '~/components/dashboard/ChartCard.vue'
 import Spinner from '~/components/Spinner.vue'
 import Table from '~/components/Table.vue'
+import { formatLocalDate } from '~/services/date'
 import { defaultApiHost, useSupabase } from '~/services/supabase'
 import { useAdminDashboardStore } from '~/stores/adminDashboard'
 import { useDisplayStore } from '~/stores/display'
@@ -139,8 +139,7 @@ const trialOrganizationsColumns = ref<TableColumn[]>([
     mobile: false,
     sortable: false,
     displayFunction: (item: TrialOrganization) => {
-      const date = new Date(item.trial_end_date)
-      return date.toLocaleDateString()
+      return formatLocalDate(item.trial_end_date)
     },
   },
 ])
@@ -156,8 +155,7 @@ const cancelledOrganizationsColumns = ref<TableColumn[]>([
     displayFunction: (item: CancelledOrganization) => {
       if (!item.canceled_at)
         return t('unknown')
-      const date = new Date(item.canceled_at)
-      return date.toLocaleDateString()
+      return formatLocalDate(item.canceled_at)
     },
   },
   {

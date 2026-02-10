@@ -1,6 +1,6 @@
 import type { MiddlewareKeyVariables } from '../utils/hono.ts'
 import { Hono } from 'hono/tiny'
-import { BRES, parseBody, quickError, simpleError } from '../utils/hono.ts'
+import { parseBody, quickError, simpleError } from '../utils/hono.ts'
 import { middlewareKey } from '../utils/hono_middleware.ts'
 import { cloudlog } from '../utils/logging.ts'
 import { logsnag } from '../utils/logsnag.ts'
@@ -58,13 +58,13 @@ app.delete('/', middlewareKey(['all', 'write', 'upload']), async (c) => {
     .eq('deleted', false)
     .single()
   if (errorVersion) {
-    throw simpleError('error_already_deleted', 'Already deleted', { errorVersion })
+    return simpleError('error_already_deleted', 'Already deleted', { errorVersion })
   }
   // check if object exist in r2
   if (version.r2_path) {
     const exist = await s3.checkIfExist(c, version.r2_path)
     if (exist) {
-      throw simpleError('error_already_uploaded_to_s3', 'Error already uploaded to S3, delete is unsafe use the webapp to delete it')
+      return simpleError('error_already_uploaded_to_s3', 'Error already uploaded to S3, delete is unsafe use the webapp to delete it')
     }
   }
 
@@ -75,15 +75,7 @@ app.delete('/', middlewareKey(['all', 'write', 'upload']), async (c) => {
     .eq('id', version.id)
     .single()
   if (errorDelete) {
-    if (errorDelete.code !== 'PGRST116') {
-      throw simpleError('error_deleting_version', 'Error deleting version', { errorDelete })
-    }
-    cloudlog({
-      requestId: c.get('requestId'),
-      message: 'delete failed version already deleted',
-      versionId: version.id,
-      errorDelete,
-    })
+    return simpleError('error_deleting_version', 'Error deleting version', { errorDelete })
   }
 
   const LogSnag = logsnag(c)
@@ -95,5 +87,5 @@ app.delete('/', middlewareKey(['all', 'write', 'upload']), async (c) => {
   })
 
   cloudlog({ requestId: c.get('requestId'), message: 'delete version', id: version.id })
-  return c.json(BRES)
+  return c.json({ status: 'Version deleted' })
 })

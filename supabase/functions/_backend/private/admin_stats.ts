@@ -1,4 +1,3 @@
-import type Stripe from 'stripe'
 import type { MiddlewareKeyVariables } from '../utils/hono.ts'
 import { Hono } from 'hono/tiny'
 import { z } from 'zod/mini'
@@ -22,43 +21,6 @@ interface AdminStatsBody {
   org_id?: string
   limit?: number
   offset?: number
-}
-
-type CancellationDetails = Stripe.Subscription.CancellationDetails
-
-const cancellationFeedbackLabels: Record<string, string> = {
-  customer_service: 'Customer service',
-  low_quality: 'Low quality',
-  missing_features: 'Missing features',
-  other: 'Other',
-  switched_service: 'Switched service',
-  too_complex: 'Too complex',
-  too_expensive: 'Too expensive',
-  unused: 'Unused',
-}
-
-const cancellationReasonLabels: Record<string, string> = {
-  cancellation_requested: 'Cancellation requested',
-  payment_disputed: 'Payment disputed',
-  payment_failed: 'Payment failed',
-}
-
-/**
- * Formats Stripe cancellation details into a short, human-readable label.
- */
-function formatCancellationReason(details: CancellationDetails | null): string | null {
-  if (!details)
-    return null
-
-  const feedback = details.feedback ? (cancellationFeedbackLabels[details.feedback] ?? details.feedback) : null
-  const reason = details.reason ? (cancellationReasonLabels[details.reason] ?? details.reason) : null
-  const comment = details.comment?.trim()
-
-  let base = feedback || reason || null
-  if (comment)
-    base = base ? `${base} — ${comment}` : comment
-
-  return base
 }
 
 export const app = new Hono<MiddlewareKeyVariables>()

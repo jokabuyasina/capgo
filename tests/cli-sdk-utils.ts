@@ -6,10 +6,8 @@ import { CapgoSDK } from '@capgo/cli/sdk'
 import { BASE_DEPENDENCIES, BASE_DEPENDENCIES_OLD, BASE_PACKAGE_JSON, TEMP_DIR_NAME } from './cli-utils'
 import { APIKEY_TEST_ALL } from './test-utils'
 
-const ROOT_DIR = cwd()
-
 // Path to the project's capacitor.config.ts that the SDK modifies during key generation
-const CAPACITOR_CONFIG_PATH = join(ROOT_DIR, 'capacitor.config.ts')
+const CAPACITOR_CONFIG_PATH = join(cwd(), 'capacitor.config.ts')
 
 // Supabase base URL (not including /functions/v1)
 const SUPABASE_URL = env.SUPABASE_URL || 'http://localhost:54321'
@@ -71,12 +69,15 @@ async function createPackageJson(appId: string, folderPath: string, dependencies
 
 /**
  * Create dist folder with a simple index.html
+ * Content includes appId to ensure unique checksums for parallel tests
  */
-async function createDistFolder(folderPath: string) {
+async function createDistFolder(folderPath: string, appId: string) {
   const distPath = join(folderPath, 'dist')
   await mkdir(distPath, { recursive: true })
 
   const indexHtmlPath = join(distPath, 'index.html')
+  // Include appId and timestamp to ensure unique content for each test
+  const uniqueId = `${appId}-${Date.now()}`
   const indexHtmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -85,6 +86,7 @@ async function createDistFolder(folderPath: string) {
 </head>
 <body>
   <h1>Test App v1.0.0</h1>
+  <!-- Unique ID for parallel test isolation: ${uniqueId} -->
   <script>
     // Call notifyAppReady() as required by Capgo
     if (window.CapacitorUpdater) {
@@ -114,7 +116,7 @@ export async function prepareCli(appId: string, dependencies?: Record<string, st
   // Create necessary files
   await createCapacitorConfig(appId, folderPath)
   await createPackageJson(appId, folderPath, dependencies)
-  await createDistFolder(folderPath)
+  await createDistFolder(folderPath, appId)
 
   preparedApps.add(appId)
 }

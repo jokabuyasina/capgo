@@ -2,21 +2,15 @@ import type { Context } from 'hono'
 import type { Database } from '../../utils/supabase.types.ts'
 import { simpleError } from '../../utils/hono.ts'
 import { cloudlog, cloudlogErr } from '../../utils/logging.ts'
-import { hasAppRightApikey, supabaseApikey } from '../../utils/supabase.ts'
+import { hasAppRightApikey, supabaseAdmin } from '../../utils/supabase.ts'
 import { getEnv } from '../../utils/utils.ts'
 
 interface BuilderStartResponse {
   status: string
 }
 
-async function markBuildAsFailed(
-  c: Context,
-  jobId: string,
-  errorMessage: string,
-  apikeyKey: string,
-): Promise<void> {
-  // Use authenticated client - RLS will enforce access
-  const supabase = supabaseApikey(c, apikeyKey)
+async function markBuildAsFailed(c: Context, jobId: string, errorMessage: string): Promise<void> {
+  const supabase = supabaseAdmin(c)
   const { error: updateError } = await supabase
     .from('build_requests')
     .update({
@@ -51,7 +45,6 @@ export async function startBuild(
   apikey: Database['public']['Tables']['apikeys']['Row'],
 ): Promise<Response> {
   let alreadyMarkedAsFailed = false
-  const apikeyKey = apikey.key ?? c.get('capgkey') ?? apikey.key_hash ?? null
 
   try {
     cloudlog({
@@ -63,7 +56,7 @@ export async function startBuild(
     })
 
     // Security: Check if user has write access to this app
-    if (!(await hasAppRightApikey(c, appId, apikey.user_id, 'write', apikeyKey))) {
+    if (!(await hasAppRightApikey(c, appId, apikey.user_id, 'write', apikey.key))) {
       const errorMsg = 'You do not have permission to start builds for this app'
       cloudlogErr({
         requestId: c.get('requestId'),
@@ -72,7 +65,7 @@ export async function startBuild(
         app_id: appId,
         user_id: apikey.user_id,
       })
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+      await markBuildAsFailed(c, jobId, errorMsg)
       alreadyMarkedAsFailed = true
       throw simpleError('unauthorized', errorMsg)
     }
@@ -97,7 +90,7 @@ export async function startBuild(
       })
 
       // Update build_requests to mark as failed
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+      await markBuildAsFailed(c, jobId, errorMsg)
       alreadyMarkedAsFailed = true
       throw simpleError('builder_error', errorMsg)
     }
@@ -112,8 +105,7 @@ export async function startBuild(
     })
 
     // Update build_requests status to running
-    // Use authenticated client - RLS will enforce access
-    const supabase = supabaseApikey(c, apikeyKey)
+    const supabase = supabaseAdmin(c)
     const { error: updateError } = await supabase
       .from('build_requests')
       .update({
@@ -140,7 +132,7 @@ export async function startBuild(
     // Mark build as failed for any unexpected error (but only if not already marked)
     if (!alreadyMarkedAsFailed) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
+      await markBuildAsFailed(c, jobId, errorMsg)
     }
     throw error
   }

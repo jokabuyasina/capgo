@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { ChartData, ChartOptions } from 'chart.js'
 import { useDark } from '@vueuse/core'
 import { CategoryScale, Chart, LinearScale, Tooltip } from 'chart.js'
 import { FunnelController, TrapezoidElement } from 'chartjs-chart-funnel'
@@ -27,8 +26,8 @@ const isDark = useDark()
 
 Chart.register(FunnelController, TrapezoidElement, CategoryScale, LinearScale, Tooltip)
 
-// Using 'any' because chartjs-chart-funnel doesn't provide TypeScript declarations
-const chartData = computed<ChartData<any>>(() => {
+// Funnel chart data - use 'any' to avoid complex type issues with chartjs-chart-funnel plugin
+const chartData = computed(() => {
   if (props.stages.length === 0) {
     return {
       labels: [],
@@ -50,7 +49,8 @@ const chartData = computed<ChartData<any>>(() => {
   }
 })
 
-const chartOptions = computed<ChartOptions<any>>(() => ({
+// Funnel chart options - use 'any' to avoid complex type issues with chartjs-chart-funnel plugin
+const chartOptions = computed(() => ({
   responsive: true,
   maintainAspectRatio: false,
   align: 'left',
@@ -112,8 +112,7 @@ const chartOptions = computed<ChartOptions<any>>(() => ({
       <span class="loading loading-spinner loading-lg text-primary" />
     </div>
     <div v-else class="w-full h-full">
-      <!-- @vue-ignore - chartjs-chart-funnel doesn't provide TypeScript declarations -->
-      <ChartComponent type="funnel" :data="chartData" :options="chartOptions" />
+      <ChartComponent type="funnel" :data="chartData as any" :options="chartOptions as any" />
     </div>
   </div>
 </template>

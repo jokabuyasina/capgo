@@ -47,6 +47,25 @@ export const USER_ID = '6aa76066-55ef-4238-ade6-0b32334a4097'
 export const USER_ID_2 = '6f0d1a2e-59ed-4769-b9d7-4d9615b28fe5'
 export const ORG_ID_2 = '34a8c55d-2d0f-4652-a43f-684c7a9403ac' // Test2 org owned by USER_ID_2
 export const STRIPE_INFO_CUSTOMER_ID_2 = 'cus_Pa0f3M6UCQ8g5Q' // Customer ID for ORG_ID_2
+// Dedicated data for email preference tests (isolated to prevent interference)
+export const USER_ID_EMAIL_PREFS = '9f1a2b3c-4d5e-4f60-8a7b-1c2d3e4f5061'
+export const USER_EMAIL_EMAIL_PREFS = 'emailprefs@capgo.app'
+export const USER_ID_DELETE_USER_STALE = 'b7a1d9f4-7b8f-4e3c-8f2b-1a2b3c4d5e6f'
+export const USER_EMAIL_DELETE_USER_STALE = 'delete-user-stale@capgo.app'
+export const USER_ID_DELETE_USER_FRESH = 'c8b2e0f5-8c90-4f4d-9f3c-2b3c4d5e6f70'
+export const USER_EMAIL_DELETE_USER_FRESH = 'delete-user-fresh@capgo.app'
+export const ORG_ID_EMAIL_PREFS = 'aa1b2c3d-4e5f-4a60-9b7c-1d2e3f4a5061'
+export const STRIPE_CUSTOMER_ID_EMAIL_PREFS = 'cus_email_prefs_test_123'
+// Dedicated data for cron/queue tests (isolated per file)
+export const ORG_ID_CRON_APP = 'b1c2d3e4-f5a6-4b70-8c9d-0e1f2a3b4c5d'
+export const STRIPE_CUSTOMER_ID_CRON_APP = 'cus_cron_app_test_123'
+export const ORG_ID_CRON_INTEGRATION = 'c2d3e4f5-a6b7-4c80-9d0e-1f2a3b4c5d6e'
+export const STRIPE_CUSTOMER_ID_CRON_INTEGRATION = 'cus_cron_integration_test_123'
+export const ORG_ID_CRON_QUEUE = 'd3e4f5a6-b7c8-4d90-8e1f-2a3b4c5d6e7f'
+export const STRIPE_CUSTOMER_ID_CRON_QUEUE = 'cus_cron_queue_test_123'
+// Dedicated data for overage tracking tests (isolated)
+export const ORG_ID_OVERAGE = 'e4f5a6b7-c8d9-4ea0-9f1a-2b3c4d5e6f70'
+export const STRIPE_CUSTOMER_ID_OVERAGE = 'cus_overage_test_123'
 export const USER_ID_STATS = '7a1b2c3d-4e5f-4a6b-7c8d-9e0f1a2b3c4d' // Dedicated user for statistics tests
 export const ORG_ID_STATS = 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e' // Dedicated org for statistics tests
 export const APIKEY_STATS = '8b2c3d4e-5f6a-4c7b-8d9e-0f1a2b3c4d5e' // Dedicated API key for statistics tests
@@ -70,6 +89,17 @@ export const CLI_HASHED_USER_ID = 'e5f6a7b8-c9d0-4e1f-8a2b-3c4d5e6f7a81'
 export const CLI_HASHED_ORG_ID = 'f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f7a8b92'
 export const CLI_HASHED_APIKEY = 'a7b8c9d0-e1f2-4a3b-8c4d-5e6f7a8b9c03'
 export const CLI_HASHED_STRIPE_CUSTOMER_ID = 'cus_cli_hashed_test_123'
+// Dedicated data for encrypted bundles tests (isolated to prevent interference)
+export const USER_ID_ENCRYPTED = 'f6a7b8c9-d0e1-4f2a-9b3c-4d5e6f708193'
+export const ORG_ID_ENCRYPTED = 'a7b8c9d0-e1f2-4a3b-9c4d-5e6f7a8b9ca4'
+export const APIKEY_ENCRYPTED = 'b8c9d0e1-f2a3-4b4c-9d5e-6f7a8b9c0d14'
+export const APP_NAME_ENCRYPTED = 'com.encrypted.app'
+export const STRIPE_CUSTOMER_ID_ENCRYPTED = 'cus_encrypted_test_123'
+// Dedicated data for SSO management tests (isolated to prevent interference with parallel tests)
+export const SSO_TEST_ORG_ID = 'a8b9c0d1-e2f3-4a5b-9c6d-7e8f9a0b1c2d'
+export const SSO_TEST_CUSTOMER_ID = 'cus_sso_test_123'
+export const SSO_TEST_DOMAIN = 'ssotest-seeded.example.com'
+export const SSO_TEST_ORG_NAME = 'SSO Test Org'
 export const USER_EMAIL = 'test@capgo.app'
 export const TEST_EMAIL = 'test@test.com'
 export const PRODUCT_ID = 'prod_LQIregjtNduh4q'
