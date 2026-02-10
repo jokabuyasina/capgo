@@ -207,6 +207,8 @@ async function foundJWT(c: Context, jwt: string) {
   const { data: user, error: userError } = await supabaseJWT.auth.getUser()
   if (userError) {
     cloudlog({ requestId: c.get('requestId'), message: 'Invalid JWT', userError })
+    // Record failed auth attempt - await to ensure accurate counting
+    await recordFailedAuth(c)
     return quickError(401, 'invalid_jwt', 'Invalid JWT')
   }
   const userId = user.user?.id
