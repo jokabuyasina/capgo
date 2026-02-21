@@ -30,13 +30,13 @@ function buildSupabaseDashboardLink(c: Context, customerId: string): string | nu
 
   // Local Supabase Studio runs on port 54323
   if (isLocalSupabase(c))
-    return `http://127.0.0.1:54323/project/default/editor/445780?schema=public&filter=customer_id%3Aeq%3A${customerId}`
+    return `http://127.0.0.1:54323/project/default/table?table=orgs&schema=public&filter=customer_id%3Aeq%3A${customerId}`
 
   const projectId = getSupabaseProjectId(c)
   if (!projectId)
     return null
-  // 445780 is the orgs table ID in Supabase
-  return `https://supabase.com/dashboard/project/${projectId}/editor/445780?schema=public&filter=customer_id%3Aeq%3A${customerId}`
+  // Use table name 'orgs' instead of hardcoded table ID for portability
+  return `https://supabase.com/dashboard/project/${projectId}/editor?table=orgs&schema=public&filter=customer_id%3Aeq%3A${customerId}`
 }
 
 export type StripeEnvironment = 'live' | 'test'
@@ -120,6 +120,25 @@ export async function getSubscriptionData(c: Context, customerId: string, subscr
     else {
       cloudlogErr({ requestId: c.get('requestId'), message: 'getSubscriptionData', error })
     }
+    return null
+  }
+}
+
+/**
+ * Fetches cancellation details for a Stripe subscription, if available.
+ */
+export async function getCancellationDetails(c: Context, subscriptionId: string | null): Promise<Stripe.Subscription.CancellationDetails | null> {
+  if (!subscriptionId)
+    return null
+  if (!existInEnv(c, 'STRIPE_SECRET_KEY'))
+    return null
+
+  try {
+    const subscription = await getStripe(c).subscriptions.retrieve(subscriptionId)
+    return subscription.cancellation_details ?? null
+  }
+  catch (error) {
+    cloudlogErr({ requestId: c.get('requestId'), message: 'getCancellationDetails', error, subscriptionId })
     return null
   }
 }
@@ -436,7 +455,19 @@ export async function createCustomer(c: Context, email: string, userId: string, 
   const supabaseLink = buildSupabaseDashboardLink(c, customer.id)
   if (supabaseLink) {
     metadata.supabase = supabaseLink
-    await getStripe(c).customers.update(customer.id, { metadata })
+    try {
+      await getStripe(c).customers.update(customer.id, { metadata })
+    }
+    catch (error: any) {
+      cloudlogErr({
+        requestId: c.get('requestId'),
+        message: 'Failed to update Stripe customer metadata',
+        customerId: customer.id,
+        metadata,
+        error: error?.message || 'Unknown error',
+      })
+      // Continue despite metadata update failure - customer is already created
+    }
   }
   return customer
 }

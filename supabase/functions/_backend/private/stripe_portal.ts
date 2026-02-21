@@ -4,7 +4,7 @@ import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.t
 import { cloudlog } from '../utils/logging.ts'
 import { checkPermission } from '../utils/rbac.ts'
 import { createPortal } from '../utils/stripe.ts'
-import { hasOrgRight, supabaseClient } from '../utils/supabase.ts'
+import { supabaseClient } from '../utils/supabase.ts'
 
 interface PortalData {
   callbackUrl: string
@@ -26,11 +26,11 @@ app.post('/', middlewareAuth, async (c) => {
   const supabase = supabaseClient(c, authorization)
 
   // Get current user ID from JWT
-  const { data: auth, error } = await supabase.auth.getUser()
-  if (error || !auth?.user?.id)
-    return simpleError('not_authorize', 'Not authorize')
+  const authContext = c.get('auth')
+  if (!authContext?.userId)
+    throw simpleError('not_authorized', 'Not authorized')
 
-  cloudlog({ requestId: c.get('requestId'), message: 'auth', auth: auth.user.id })
+  cloudlog({ requestId: c.get('requestId'), message: 'auth', auth: authContext.userId })
   const { data: org, error: dbError } = await supabase
     .from('orgs')
     .select('customer_id')

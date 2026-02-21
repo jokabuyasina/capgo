@@ -22,7 +22,7 @@ export function isSafeAlphanumeric(value: string): boolean {
   if (!value || typeof value !== 'string')
     return false
   // Allow alphanumeric characters, dashes, and underscores (common in API keys)
-  return /^[a-z0-9_-]+$/i.test(value)
+  return /^[\w-]+$/.test(value)
 }
 
 // Regex for Zod validation of an app id

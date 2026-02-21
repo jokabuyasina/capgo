@@ -3,7 +3,7 @@ import { Hono } from 'hono/tiny'
 import { getBundleUrl, getManifestUrl } from '../utils/downloadUrl.ts'
 import { middlewareAuth, parseBody, simpleError, useCors } from '../utils/hono.ts'
 import { cloudlog } from '../utils/logging.ts'
-import { hasAppRight, supabaseClient } from '../utils/supabase.ts'
+import { supabaseClient } from '../utils/supabase.ts'
 
 interface DataDownload {
   app_id: string
@@ -28,11 +28,11 @@ app.post('/', middlewareAuth, async (c) => {
   const supabase = supabaseClient(c, authorization)
 
   // Get current user ID from JWT
-  const { data: auth, error } = await supabase.auth.getUser()
-  if (error || !auth?.user?.id)
+  const authContext = c.get('auth')
+  if (!authContext?.userId)
     throw simpleError('not_authorized', 'Not authorized')
 
-  const userId = auth.user.id
+  const userId = authContext.userId
 
   // Auth context is already set by middlewareAuth
   if (!(await checkPermission(c, 'app.read_bundles', { appId: body.app_id })))

@@ -101,6 +101,7 @@ async function validateInvite(c: Context, rawBody: any) {
     return { message: 'not authorized', status: 401 }
 
   // Verify captcha token with Cloudflare Turnstile
+  // verifyCaptchaToken throws on failure
   await verifyCaptchaToken(c, body.captcha_token)
 
   // Use authenticated client - RLS will enforce access based on JWT
@@ -129,23 +130,30 @@ async function validateInvite(c: Context, rawBody: any) {
     return { message: 'Failed to invite user', error: orgError?.message ?? 'Organization not found', status: 500 }
   }
 
+  if (!org.name.match(nameRegex)) {
+    return { message: 'Failed to invite user due to invalid organization name', error: 'Organization name contains invalid characters', status: 400 }
+  }
+
+  const useNewRbac = org.use_new_rbac === true
+  const { legacyInviteType, rbacRoleName } = resolveInviteRoles(body.invite_type, useNewRbac)
+
   // Get current user ID from JWT
-  const { data: authData, error: authError } = await supabase.auth.getUser()
-  if (authError || !authData?.user?.id) {
-    return { message: 'Failed to get current user', error: authError?.message, status: 500 }
+  const authContext = c.get('auth')
+  if (!authContext?.userId) {
+    return { message: 'Failed to get current user', error: 'Not authorized', status: 500 }
   }
 
   // Get user details
   const { data: inviteCreatorUser, error: inviteCreatorUserError } = await supabase
     .from('users')
     .select('*')
-    .eq('id', authData.user.id)
+    .eq('id', authContext.userId)
     .single()
 
   if (inviteCreatorUserError) {
     return { message: 'Failed to invite user', error: inviteCreatorUserError.message, status: 500 }
   }
-  return { inviteCreatorUser, org, body, authorization }
+  return { inviteCreatorUser, org, body, authorization, legacyInviteType, rbacRoleName }
 }
 
 app.post('/', middlewareAuth, async (c) => {

@@ -30,6 +30,7 @@ const adminOnlyRoutes = [
   '/settings/organization/audit-logs',
   '/settings/organization/auditlogs',
   '/settings/organization/security',
+  '/settings/organization/sso',
 ]
 
 // Check if user is super_admin
@@ -148,6 +149,17 @@ watchEffect(() => {
   }
   if (!needsSecurity && hasSecurity)
     organizationTabs.value = organizationTabs.value.filter(tab => tab.key !== '/settings/organization/security')
+
+  // SSO - visible only to super_admins
+  const needsSso = isSuperAdmin.value
+  const hasSso = organizationTabs.value.find(tab => tab.key === '/settings/organization/sso')
+  if (needsSso && !hasSso) {
+    const base = baseOrgTabs.find(t => t.key === '/settings/organization/sso')
+    if (base)
+      organizationTabs.value.push({ ...base })
+  }
+  if (!needsSso && hasSso)
+    organizationTabs.value = organizationTabs.value.filter(tab => tab.key !== '/settings/organization/sso')
 
   // Check billing access - users with org.read_billing permission can access billing
   if (!Capacitor.isNativePlatform()

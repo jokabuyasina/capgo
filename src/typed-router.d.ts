@@ -51,13 +51,6 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/admin/dashboard/performance': RouteRecordInfo<
-      '/admin/dashboard/performance',
-      '/admin/dashboard/performance',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/admin/dashboard/plugins': RouteRecordInfo<
       '/admin/dashboard/plugins',
       '/admin/dashboard/plugins',
@@ -310,13 +303,6 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/onboarding/confirm_email': RouteRecordInfo<
-      '/onboarding/confirm_email',
-      '/onboarding/confirm_email',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
     '/onboarding/set_password': RouteRecordInfo<
       '/onboarding/set_password',
       '/onboarding/set_password',
@@ -422,6 +408,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/settings/organization/sso': RouteRecordInfo<
+      '/settings/organization/sso',
+      '/settings/organization/sso',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/settings/organization/Usage': RouteRecordInfo<
       '/settings/organization/Usage',
       '/settings/organization/Usage',
@@ -432,6 +425,13 @@ declare module 'vue-router/auto-routes' {
     '/settings/organization/Webhooks': RouteRecordInfo<
       '/settings/organization/Webhooks',
       '/settings/organization/Webhooks',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/sso-login': RouteRecordInfo<
+      '/sso-login',
+      '/sso-login',
       Record<never, never>,
       Record<never, never>,
       | never
@@ -477,12 +477,6 @@ declare module 'vue-router/auto-routes' {
     'src/pages/admin/dashboard/credits.vue': {
       routes:
         | '/admin/dashboard/credits'
-      views:
-        | never
-    }
-    'src/pages/admin/dashboard/performance.vue': {
-      routes:
-        | '/admin/dashboard/performance'
       views:
         | never
     }
@@ -702,12 +696,6 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/onboarding/confirm_email.vue': {
-      routes:
-        | '/onboarding/confirm_email'
-      views:
-        | never
-    }
     'src/pages/onboarding/set_password.vue': {
       routes:
         | '/onboarding/set_password'
@@ -798,6 +786,12 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
+    'src/pages/settings/organization/sso.vue': {
+      routes:
+        | '/settings/organization/sso'
+      views:
+        | never
+    }
     'src/pages/settings/organization/Usage.vue': {
       routes:
         | '/settings/organization/Usage'
@@ -807,6 +801,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/settings/organization/Webhooks.vue': {
       routes:
         | '/settings/organization/Webhooks'
+      views:
+        | never
+    }
+    'src/pages/sso-login.vue': {
+      routes:
+        | '/sso-login'
       views:
         | never
     }

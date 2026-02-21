@@ -48,6 +48,11 @@ export async function startBuild(
   let alreadyMarkedAsFailed = false
   const apikeyKey = apikey.key
 
+  // Validate API key is not null (hashed-only keys cannot start builds)
+  if (!apikeyKey) {
+    throw simpleError('invalid_apikey', 'API key is missing or invalid. Build operations require a non-hashed API key.')
+  }
+
   try {
     cloudlog({
       requestId: c.get('requestId'),
@@ -133,7 +138,7 @@ export async function startBuild(
   }
   catch (error) {
     // Mark build as failed for any unexpected error (but only if not already marked)
-    if (!alreadyMarkedAsFailed && apikeyKey) {
+    if (!alreadyMarkedAsFailed) {
       const errorMsg = error instanceof Error ? error.message : String(error)
       await markBuildAsFailed(c, jobId, errorMsg, apikeyKey)
     }
